@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>코드 법정</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="casebar">
+    <div>
+      <div class="ep" id="ep">코드 법정</div>
+      <h1 id="caseTitle">코드 법정</h1>
+    </div>
+    <div class="trust" id="trustBox" aria-label="재판장 신뢰도"><span id="trustLabel">신뢰도</span><span id="hearts"></span><button class="homebtn" id="homeBtn">사건 목록</button></div>
+  </header>
+
+  <section class="menu" id="menu" hidden>
+    <button class="backbtn" id="backBtn" hidden>← 코스 목록</button>
+    <p class="lead" id="lead">증언에서 모순을 찾아 증거를 제시하세요. 코드가 정말 그렇게 동작하는지, 반례와 실행 결과로 반박하는 재판이에요.</p>
+    <div class="cases" id="cases"></div>
+    <p class="note">진행 상황은 이 기기에만 저장돼요.</p>
+  </section>
+
+  <section class="stage" id="stage" hidden>
+    <div class="scene"><div class="portrait" id="portrait">⚖️<small>법정</small></div></div>
+    <div class="box" id="box">
+      <div class="who" id="who">재판장</div>
+      <div id="tagline"></div>
+      <p class="text" id="text"></p>
+    </div>
+    <div id="choiceArea"></div>
+    <div class="actions" id="actions"></div>
+  </section>
+</div>
+
+<div class="shout" id="shout" hidden><span id="shoutText">이의 있음!</span></div>
+
+<div class="sheet-bg" id="sheetBg" hidden></div>
+<div class="sheet" id="sheet" hidden role="dialog" aria-label="법정 기록">
+  <div class="sheet-in">
+    <h2 id="sheetTitle">법정 기록</h2>
+    <p class="hint" id="sheetHint"></p>
+    <div class="ev-list" id="evList"></div>
+    <div class="ev-detail" id="evDetail" hidden></div>
+    <div class="sheet-actions" id="sheetActions"></div>
+  </div>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

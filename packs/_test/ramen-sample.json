@@ -1,0 +1,1103 @@
+{
+  "format": "code-court/v1",
+  "id": "ramen-sample",
+  "title": "라멘 코드 법정 (테스트용)",
+  "test": true,
+  "note": "엔진 회귀 테스트용. 원본은 개인 게임 portfolio/code-court.html이며 앱에는 넣지 않는다.",
+  "commonCharacters": {
+    "judge": [
+      "⚖️",
+      "재판장"
+    ],
+    "me": [
+      "🧑‍💻",
+      "나 (변호인)"
+    ],
+    "dev": [
+      "😎",
+      "박서버 (백엔드 리드)"
+    ],
+    "devSweat": [
+      "😰",
+      "박서버 (백엔드 리드)"
+    ]
+  },
+  "cases": [
+    {
+      "id": "c1",
+      "ep": "제1화 · 방문 인증",
+      "title": "유령 손님 사건",
+      "blurb": "3분 만에 나간 손님이 ‘방문 인증’ 배지를 달고 별점 1점을 남겼다.",
+      "characters": {
+        "owner": [
+          "👩‍🍳",
+          "하나 사장님"
+        ]
+      },
+      "evidence": {
+        "record": {
+          "ic": "🧾",
+          "k": "DB 기록",
+          "name": "방문 인증 기록",
+          "desc": "악평을 쓴 손님 '라멘헌터77'의 visit_verification 행.",
+          "code": "status               = VERIFIED\nentered_at           = 19:00:04\nverified_at          = 19:20:04\nstay_duration_seconds= 1203"
+        },
+        "gps": {
+          "ic": "📍",
+          "k": "사장님 제출",
+          "name": "손님 위치 기록",
+          "desc": "손님이 SNS에 올린 러닝 앱 경로 캡처. 같은 날 저녁.",
+          "code": "19:00  멘야 하나 앞 (가게에서 5m)\n19:03  가게를 떠남\n19:10  지하철역 (가게에서 820m)\n19:25  집 도착"
+        },
+        "yml": {
+          "ic": "⚙️",
+          "k": "설정 파일",
+          "name": "application.yml",
+          "desc": "방문 인증 설정. 환경 변수가 없으면 기본값을 씀.",
+          "code": "verification:\n  required-stay-seconds: ${VERIFICATION_REQUIRED_STAY_SECONDS:1200}\n  radius-meters: ${VERIFICATION_RADIUS_METERS:50}"
+        },
+        "enter": {
+          "ic": "🚪",
+          "k": "코드",
+          "name": "startVerification()",
+          "desc": "POST /verifications/enter. 인증 시작. 시작할 때 거리를 잰다.",
+          "code": "val distance = LocationUtils.calculateDistance(\n    request.latitude, request.longitude,\n    restaurant.latitude, restaurant.longitude)\nif (distance > radiusMeters) throw OutOfRangeException()\n// ... PENDING 상태로 저장\nVisitVerification(enteredAt = now, status = PENDING)"
+        },
+        "verify": {
+          "ic": "✅",
+          "k": "코드",
+          "name": "verifyVerification()",
+          "desc": "POST /verifications/{id}/verify. 사용자가 직접 ‘인증 완료’를 누를 때. 테스트도 있음.",
+          "code": "val distance = LocationUtils.calculateDistance(\n    request.latitude, request.longitude, ...)\nif (distance > radiusMeters) throw OutOfRangeException()   // 위치 재확인\nif (currentStaySeconds < requiredStaySeconds) return 실패\nverification.status = VERIFIED"
+        },
+        "log": {
+          "ic": "🖥️",
+          "k": "서버 로그",
+          "name": "그날 밤 서버 로그",
+          "desc": "라멘헌터77의 인증과 관련된 로그만 추린 것.",
+          "code": "19:00:04  POST /verifications/enter     200  (거리 5.2m)\n19:20:06  [VerificationScheduler] PENDING → VERIFIED\n19:31:40  POST /reviews                  201  (별점 1)\n--------------------------------------------------\nPOST /verifications/{id}/verify  호출 기록: 없음"
+        },
+        "sched": {
+          "ic": "⏱️",
+          "k": "코드",
+          "name": "VerificationScheduler",
+          "desc": "5초마다 도는 자동 완료 스케줄러.",
+          "code": "@Scheduled(fixedDelay = 5000)\n@Transactional\nfun autoCompleteExpiredVerifications() {\n  val pending = repo.findAllByStatus(PENDING)\n  val now = LocalDateTime.now()\n  pending.forEach { v ->\n    val elapsed = Duration.between(v.enteredAt, now).seconds\n    if (elapsed >= requiredStaySeconds) {\n      v.status = VERIFIED\n      v.stayDurationSeconds = elapsed.toInt()\n      repo.save(v)\n    }\n  }\n}"
+        },
+        "truth": {
+          "ic": "📌",
+          "k": "추리",
+          "name": "1203초의 정체",
+          "desc": "조합 결과: stay_duration_seconds는 ‘손님이 가게에 머문 시간’이 아니다.\n스케줄러가 처리한 순간의 now − entered_at, 즉 ‘인증을 시작하고 흐른 시간’이다.\n19:20:06 − 19:00:04 ≈ 1202~1203초. 손님이 어디 있었는지는 전혀 반영되지 않는다.",
+          "code": "stayDurationSeconds = elapsed\nelapsed = now − enteredAt   // 위치와 무관"
+        }
+      },
+      "script": [
+        {
+          "say": "judge",
+          "t": "지금부터 ‘멘야 하나 악평 사건’의 재판을 시작합니다."
+        },
+        {
+          "say": "owner",
+          "t": "그 손님은 들어와서 메뉴판만 보고 <b>3분 만에</b> 나갔어요! 그런데 ‘방문 인증 완료’ 배지를 달고 별점 1점을 남겼다고요."
+        },
+        {
+          "say": "me",
+          "t": "RamenLog는 <b>방문 인증</b>을 해야 리뷰를 쓸 수 있는 서비스죠. 3분 만에 나간 사람이 어떻게 인증을 받았을까요?"
+        },
+        {
+          "say": "judge",
+          "t": "증인, 인증 시스템을 설계한 사람으로서 증언해 주세요."
+        },
+        {
+          "say": "dev",
+          "t": "기꺼이요. 저희 인증 시스템은 완벽합니다."
+        },
+        {
+          "gain": [
+            "record",
+            "gps",
+            "yml",
+            "enter",
+            "verify",
+            "log",
+            "sched"
+          ],
+          "t": "법정 기록에 증거 7개가 들어왔다. ‘법정 기록’ 버튼으로 언제든 볼 수 있다."
+        },
+        {
+          "cross": "c1",
+          "title": "증언 ① 인증 시스템은 완벽하다",
+          "who": "dev",
+          "lines": [
+            {
+              "t": "방문 인증은 가게 반경 50m 안에서만 시작할 수 있습니다.",
+              "press": [
+                [
+                  "dev",
+                  "시작 API에서 거리를 직접 재요. 반경은 설정 파일에 50으로 되어 있죠."
+                ],
+                [
+                  "me",
+                  "(시작할 때 거리를 재는 건 사실인 것 같다. 증거와도 맞는다.)"
+                ]
+              ]
+            },
+            {
+              "t": "그리고 20분, 즉 1200초 이상 머물러야 인증이 완료되죠.",
+              "press": [
+                [
+                  "dev",
+                  "required-stay-seconds 기본값이 1200입니다."
+                ],
+                [
+                  "me",
+                  "(1200초도 설정 파일과 맞는다.)"
+                ]
+              ]
+            },
+            {
+              "t": "완료할 때도 반드시 위치를 다시 확인합니다. 테스트 코드까지 있어요.",
+              "press": [
+                [
+                  "dev",
+                  "verify API에 거리 재확인이 들어 있어요. 60m 경계 테스트도 통과합니다."
+                ],
+                [
+                  "me",
+                  "(verify API에 재확인이 있는 건 맞다. 그런데… 이 손님이 정말 verify로 완료됐을까?)"
+                ]
+              ]
+            }
+          ],
+          "answer": {
+            "line": 2,
+            "ev": "log"
+          },
+          "hint": "완료가 ‘어떤 경로로’ 일어났는지 보여 주는 기록이 있을 텐데…",
+          "win": [
+            [
+              "me",
+              "증인! 서버 로그를 보세요. 이 손님은 <code>/verify</code>를 <b>한 번도 호출하지 않았습니다.</b>"
+            ],
+            [
+              "me",
+              "19시 20분 06초에 VERIFIED로 바꾼 건 <b>VerificationScheduler</b>예요. 위치를 재확인하는 verify API는 지나가지도 않았어요!"
+            ],
+            [
+              "devSweat",
+              "으윽… 스, 스케줄러요? 그건 사용자가 버튼을 깜빡해도 자동으로 완료해 주는 편의 기능인데…"
+            ],
+            [
+              "judge",
+              "증인, 그 스케줄러에 대해 다시 증언하세요."
+            ]
+          ]
+        },
+        {
+          "cross": "c2",
+          "title": "증언 ② 스케줄러도 안전하다",
+          "who": "devSweat",
+          "lines": [
+            {
+              "t": "스케줄러는 5초마다 PENDING 상태인 인증을 모두 확인합니다.",
+              "press": [
+                [
+                  "dev",
+                  "fixedDelay = 5000이에요. 5초 간격으로 돕니다."
+                ],
+                [
+                  "me",
+                  "(코드의 어노테이션과 맞다.)"
+                ]
+              ]
+            },
+            {
+              "t": "인증을 시작한 지 1200초가 지나면 VERIFIED로 바꾸죠.",
+              "press": [
+                [
+                  "dev",
+                  "elapsed >= requiredStaySeconds 조건입니다."
+                ],
+                [
+                  "me",
+                  "(이것도 코드와 같다. 그럼 남은 건…)"
+                ]
+              ]
+            },
+            {
+              "t": "물론 바꾸기 전에 손님이 아직 가게 근처에 있는지 위치를 확인합니다.",
+              "press": [
+                [
+                  "dev",
+                  "당연히 확인하겠죠… 아마도요."
+                ],
+                [
+                  "me",
+                  "(‘아마도’? 코드를 직접 보면 알 수 있다.)"
+                ]
+              ]
+            }
+          ],
+          "answer": {
+            "line": 2,
+            "ev": "sched"
+          },
+          "hint": "스케줄러 코드 안에 calculateDistance가 있는지 직접 확인해 보자.",
+          "win": [
+            [
+              "me",
+              "스케줄러 코드 어디에도 <code>calculateDistance</code>는 없습니다! 보는 건 <code>enteredAt</code>과 <code>now</code>, <b>시간뿐</b>이에요."
+            ],
+            [
+              "me",
+              "그러니까 ‘들어가서 시작 → 바로 나감 → 20분 기다림’이면 집에서도 인증이 완료됩니다."
+            ],
+            [
+              "devSweat",
+              "크윽…! 하, 하지만 기록에는 분명히 1203초를 머물렀다고 찍혀 있잖아요!"
+            ],
+            [
+              "judge",
+              "흠. 숫자는 거짓말을 하지 않는다고들 하죠. 증인, 계속하세요."
+            ]
+          ]
+        },
+        {
+          "combine": [
+            "record",
+            "sched"
+          ],
+          "result": "truth",
+          "t": "1203초라는 숫자가 어디서 왔는지 밝혀야 한다.\n법정 기록에서 증거 두 개를 골라 ‘조합’해 보자.",
+          "wrong": "이 둘을 합쳐도 1203이라는 숫자의 출처는 안 나온다. 숫자가 적힌 기록과, 그 숫자를 계산하는 코드를 찾아보자.",
+          "got": "인증 기록의 <b>1203</b>과 스케줄러의 <code>stayDurationSeconds = elapsed</code>…!\n새 증거 <b>📌 1203초의 정체</b>를 얻었다."
+        },
+        {
+          "cross": "c3",
+          "title": "증언 ③ 손님은 실제로 머물렀다",
+          "who": "devSweat",
+          "lines": [
+            {
+              "t": "stay_duration_seconds는 손님이 가게에 머문 시간을 기록하는 컬럼입니다.",
+              "press": [
+                [
+                  "dev",
+                  "이름이 stay, ‘체류’잖아요!"
+                ],
+                [
+                  "me",
+                  "(이름은 그렇다. 그런데 실제로 무엇을 넣고 있지?)"
+                ]
+              ]
+            },
+            {
+              "t": "그 값이 1203초이니, 손님은 20분 넘게 가게에 있었던 겁니다.",
+              "press": [
+                [
+                  "dev",
+                  "1203 ≥ 1200. 수학적으로 완벽하죠."
+                ],
+                [
+                  "me",
+                  "(방금 조합한 추리가 여기서 쓰일 것 같다.)"
+                ]
+              ]
+            },
+            {
+              "t": "따라서 이 리뷰는 정당한 방문 후기입니다.",
+              "press": [
+                [
+                  "dev",
+                  "시스템이 인증했으니까요."
+                ],
+                [
+                  "me",
+                  "(결론은 앞 문장에 기대고 있다. 무너뜨려야 할 건 그 앞이다.)"
+                ]
+              ]
+            }
+          ],
+          "answer": {
+            "line": 1,
+            "ev": "truth"
+          },
+          "alt": {
+            "line": 1,
+            "ev": "gps",
+            "say": [
+              [
+                "judge",
+                "위치 기록은 손님이 19시 3분에 떠났다는 걸 보여 주는군요."
+              ],
+              [
+                "devSweat",
+                "그건 개인 앱 캡처일 뿐이에요! 저희 DB에는 1203초가 찍혀 있다고요!"
+              ],
+              [
+                "me",
+                "(DB의 숫자 자체가 무엇을 의미하는지 밝혀야 한다. 조합한 추리를 쓰자.)"
+              ]
+            ]
+          },
+          "hint": "1203초가 정말 ‘머문 시간’인가? 조합으로 얻은 추리를 떠올려 보자.",
+          "win": [
+            [
+              "me",
+              "그 1203초는 <b>머문 시간이 아닙니다!</b> 스케줄러가 넣은 값은 <code>now − enteredAt</code>, 인증을 시작하고 <b>흐른 시간</b>이에요."
+            ],
+            [
+              "me",
+              "19:20:06에 처리했으니 약 1202~1203초. 손님이 지하철역에 있든 집에 있든 <b>똑같은 숫자</b>가 나옵니다."
+            ],
+            [
+              "devSweat",
+              "으아아악─!!"
+            ],
+            [
+              "judge",
+              "…증인, 인정하십니까?"
+            ],
+            [
+              "dev",
+              "…인정합니다. 수동 verify는 위치를 다시 재지만, 자동 완료 스케줄러는 시간만 봤어요. 그리고 그 경과 시간을 ‘체류 시간’ 컬럼에 넣고 있었네요."
+            ]
+          ]
+        },
+        {
+          "choice": "judge",
+          "t": "그렇다면 변호인, 이 시스템은 어떻게 고쳐야 합니까?",
+          "options": [
+            {
+              "t": "반경을 50m에서 200m로 넓힌다",
+              "ok": false,
+              "fb": "반경을 넓히면 오히려 더 멀리서도 인증된다. 문제는 반경 크기가 아니라 ‘완료할 때 위치를 안 본다’는 것이다."
+            },
+            {
+              "t": "스케줄러 주기를 5초에서 1초로 줄인다",
+              "ok": false,
+              "fb": "더 자주 돌아도 보는 건 여전히 시간뿐이다. 주기와 위치 확인은 상관이 없다."
+            },
+            {
+              "t": "자동 완료를 없애고, 사용자가 가게 안에서 verify를 눌러야만 완료되게 한다 (위치 재확인 경로로 통일)",
+              "ok": true
+            },
+            {
+              "t": "체류 시간을 1200초에서 600초로 줄인다",
+              "ok": false,
+              "fb": "기다리는 시간만 짧아질 뿐, 집에서 인증되는 구멍은 그대로다."
+            }
+          ],
+          "win": [
+            [
+              "judge",
+              "좋습니다. 완료는 위치를 재는 한 경로로만 일어나야 한다는 말이군요."
+            ],
+            [
+              "me",
+              "더 나아가려면 앱이 몇 분마다 위치를 보내는 <b>하트비트</b>를 두고, 반경을 벗어나면 <code>FAILED</code>로 바꿀 수 있어요. 지금 코드에는 FAILED 상태가 정의만 되어 있고 쓰이지 않거든요."
+            ],
+            [
+              "me",
+              "그리고 자동 완료 로직이 서비스와 스케줄러에 <b>두 군데</b> 있어요. 고칠 때 한 곳으로 모아야 같은 구멍이 다시 안 생깁니다."
+            ]
+          ]
+        },
+        {
+          "verdict": true
+        }
+      ],
+      "verdict": {
+        "say": "본 법정은 이 리뷰의 ‘방문 인증’이 <b>시스템 결함으로 잘못 발급되었다</b>고 판단합니다.\n멘야 하나의 악평 삭제를 선고합니다!",
+        "quote": "방문 인증에는 완료 경로가 두 개였습니다. 사용자가 누르는 verify API는 위치를 다시 재지만, 5초마다 도는 자동 완료 스케줄러는 경과 시간만 봤습니다. 그래서 반경 안에서 시작만 하고 떠나도 20분 뒤 VERIFIED가 됐고, 그 경과 시간이 체류 시간 컬럼에 기록됐습니다. 다시 만든다면 완료를 위치 재확인 경로 하나로 모으고, 주기적인 위치 하트비트로 이탈 시 FAILED 처리하겠습니다.",
+        "clues": [
+          "시작(<code>startVerification</code>)과 수동 완료(<code>verifyVerification</code>)는 거리를 잰다",
+          "자동 완료(<code>VerificationScheduler</code>, 5초마다)는 시간만 본다",
+          "<code>stay_duration_seconds</code>는 경과 시간이지, 머문 시간이 아니다",
+          "FAILED 상태는 정의만 있고 쓰이지 않는다 / 자동 완료 로직이 두 군데 있다"
+        ]
+      }
+    },
+    {
+      "id": "boss1",
+      "ep": "중간 보스 · 1~6화 총정리",
+      "title": "라멘로그 대법정",
+      "blurb": "하룻밤, 한 계정, 다섯 가게, 다섯 개의 ‘인증된’ 별점 1점. 1~6화를 풀고 오면 좋아요.",
+      "boss": true,
+      "hard": true,
+      "trust": 3,
+      "characters": {
+        "owner": [
+          "👩‍🍳",
+          "하나 사장님 (가게 연합 대표)"
+        ],
+        "user": [
+          "👸",
+          "라멘공주 (계정 주인)"
+        ]
+      },
+      "evidence": {
+        "complaint": {
+          "ic": "📣",
+          "k": "고소장",
+          "name": "가게 연합의 고소장",
+          "desc": "10/12 새벽, 라멘공주 계정으로 다섯 가게에 ‘방문 인증’ 배지가 달린 별점 1점 리뷰가 올라왔다.",
+          "code": "00:24  멘야 하나      ★1 \"국물이 짜다\" [방문 인증 ✔]\n00:46  츠루츠루      ★1 \"면이 불었다\" [방문 인증 ✔]\n01:08  라멘 소라      ★1 [방문 인증 ✔]\n01:30  돈코츠 하루    ★1 [방문 인증 ✔]\n01:52  미소 키친      ★1 [방문 인증 ✔]"
+        },
+        "records": {
+          "ic": "🧾",
+          "k": "DB 기록",
+          "name": "인증 기록 5건",
+          "desc": "라멘공주 계정의 visit_verification. 시작 때 서버가 계산한 거리와, 가게끼리의 실제 거리를 함께 적었다.",
+          "code": "#  가게         시작(enter)  완료(VERIFIED)  시작 시 거리\n1  멘야 하나    00:00:10     00:20:13        0.0m\n2  츠루츠루     00:21:02     00:41:05        0.0m   (1번 가게에서 12.4km)\n3  라멘 소라    00:42:01     01:02:04        0.0m   (2번 가게에서 9.8km)\n4  돈코츠 하루  01:03:00     01:23:03        0.0m   (3번 가게에서 14.1km)\n5  미소 키친    01:24:02     01:44:05        0.0m   (4번 가게에서 11.7km)"
+        },
+        "serverLog": {
+          "ic": "🖥️",
+          "k": "서버 로그",
+          "name": "그날 밤 서버 로그",
+          "desc": "라멘공주 계정 요청만 추림. Bearer 토큰은 끝 4자리와 디코딩한 exp만 표시.",
+          "code": "00:00:10  POST /verifications/enter   201  Bearer …Zx7p (exp 10/24 19:00)\n00:20:13  [VerificationScheduler] PENDING → VERIFIED\n00:24:40  POST /reviews               201  Bearer …Zx7p\n   … 같은 패턴 × 5 …\n--------------------------------------------------\nPOST /verifications/{id}/verify  호출: 없음\nPOST /auth/login (10/10 이후)     호출: 없음"
+        },
+        "sched": {
+          "ic": "⏱️",
+          "k": "코드",
+          "name": "VerificationScheduler",
+          "desc": "5초마다 PENDING을 찾아 1200초가 지나면 VERIFIED로 바꾼다.",
+          "code": "pending.forEach { v ->\n  val elapsed = Duration.between(v.enteredAt, now).seconds\n  if (elapsed >= requiredStaySeconds) { v.status = VERIFIED; repo.save(v) ... }\n}"
+        },
+        "dto": {
+          "ic": "📦",
+          "k": "코드",
+          "name": "인증 시작 요청",
+          "desc": "POST /verifications/enter의 요청 본문과, 그걸 쓰는 서비스 코드. 프론트는 브라우저의 navigator.geolocation 값을 담아 보낸다.",
+          "code": "data class VerificationEnterRequest(\n  @JsonProperty(\"restaurant_id\") val restaurantId: UUID,\n  val latitude: Double,\n  val longitude: Double\n)\n\n// startVerification()\nval distance = calculateDistance(request.latitude, request.longitude,\n                                 restaurant.latitude, restaurant.longitude)\nif (distance > radiusMeters) throw OutOfRangeException()"
+        },
+        "statement": {
+          "ic": "🗣️",
+          "k": "진술",
+          "name": "라멘공주의 진술",
+          "desc": "계정 주인의 진술.",
+          "code": "10/10 19:00  PC방에서 로그인 (옆자리 사람이 내 자리에 앉아 있었음)\n10/10 21:00  로그아웃\n10/12 새벽   집에서 자고 있었음. 그 뒤로 앱을 연 적 없음"
+        },
+        "token": {
+          "ic": "🔬",
+          "k": "분석",
+          "name": "…Zx7p 토큰 해부",
+          "desc": "새벽 요청에 실린 토큰 …Zx7p의 payload. 10/10 19:00 로그인 응답의 두 토큰과 비교했다.",
+          "code": "…Zx7p           iat 10/10 19:00   exp 10/24 19:00   (14일)\n로그인 access   iat 10/10 19:00   exp 10/11 19:00   (24시간)\n로그인 refresh  iat 10/10 19:00   exp 10/24 19:00   ← 같다\n두 토큰의 차이: exp뿐 (type 클레임 없음)"
+        },
+        "logout": {
+          "ic": "🚪",
+          "k": "코드",
+          "name": "AuthService.logout()",
+          "desc": "로그아웃이 하는 일.",
+          "code": "user.updateRefreshToken(null)        // DB의 리프레시 토큰 칸만 비움\nuserRepository.saveAndFlush(user)\n// 나중에 Redis 블랙리스트로 구현할 예정"
+        },
+        "filter": {
+          "ic": "🚧",
+          "k": "코드",
+          "name": "JwtAuthenticationFilter",
+          "desc": "모든 요청 앞의 인증 필터.",
+          "code": "val userId = jwtProvider.getUserIdFromToken(token)   // 서명·만료 확인 후 userId\nval user = userRepository.findById(userId).orElseThrow { ... }\nSecurityContextHolder.getContext().authentication = ...\n// DB의 refreshToken 칸이나 토큰 종류는 보지 않는다"
+        },
+        "dashboard": {
+          "ic": "📊",
+          "k": "코드 (가상)",
+          "name": "박서버의 탐지 대시보드",
+          "desc": "사건 뒤 박서버가 급히 만든 ‘부정 리뷰 탐지’ 화면의 서비스 코드.",
+          "code": "restaurantRepository.findAll().map { r ->          // 가게 약 2만 개\n  DashboardRow(\n    reviews = reviewRepository.countByRestaurantId(r.id!!),\n    avg     = reviewRepository.getAverageRating(r.id!!),\n    visits  = visitVerificationRepository.countByRestaurantId(r.id!!)\n  )\n}"
+        },
+        "entity": {
+          "ic": "🏮",
+          "k": "코드",
+          "name": "Restaurant 엔티티",
+          "desc": "가게 엔티티. 다른 엔티티와의 연관관계 필드가 없다.",
+          "code": "class Restaurant(id, kakaoPlaceId, name, address, latitude, longitude, phone, createdAt)"
+        },
+        "coord": {
+          "ic": "📌",
+          "k": "추리",
+          "name": "위치는 클라이언트가 보낸 숫자",
+          "desc": "조합 결과: 서버가 ‘잰’ 거리는 클라이언트가 요청 본문에 적어 보낸 좌표로 계산한 값이다. 서버는 그 좌표가 진짜 GPS인지 확인하지 않는다.\n다섯 번 모두 0.0m = 가게 좌표를 그대로 적어 보냈다는 뜻. 진짜 GPS는 수 m씩 흔들린다.\n게다가 12km 떨어진 다음 가게에서 1분 만에 인증을 시작했다. 사람이 이동할 수 없는 속도다.",
+          "code": "요청 본문 latitude/longitude = 가게 좌표 그대로  → 거리 0.0m\n00:20:13 1번 가게 완료 → 00:21:02 12.4km 떨어진 2번 가게 시작"
+        },
+        "pass": {
+          "ic": "📌",
+          "k": "추리",
+          "name": "로그아웃이 못 막는 출입증",
+          "desc": "조합 결과: 로그아웃은 DB의 리프레시 토큰 칸만 비운다. 이건 /auth/refresh(재발급)만 막는다.\n필터는 DB도, 토큰 종류도 보지 않으므로, 서명이 맞고 만료 전인 리프레시 토큰은 다른 모든 API에서 여전히 통과한다.\n…Zx7p의 만료는 10/24. 그때까지 범인은 언제든 다시 들어올 수 있다.",
+          "code": "logout → DB refreshToken = null  → /auth/refresh만 거절\nfilter → 서명·만료만 확인        → 나머지 API는 통과"
+        }
+      },
+      "script": [
+        {
+          "say": "judge",
+          "t": "정숙! 지금부터 <b>라멘로그 대법정</b>을 개정합니다. 이번 재판은 길고, 본 법정의 인내심은 평소보다 짧습니다."
+        },
+        {
+          "say": "judge",
+          "t": "※ 이번 재판의 신뢰도는 <b>3</b>입니다. 첫 실수에는 힌트도 드리지 않습니다."
+        },
+        {
+          "say": "owner",
+          "t": "10월 12일 새벽, 라멘공주 계정으로 우리 가게 연합 <b>다섯 곳</b>에 ‘방문 인증’ 배지가 달린 별점 1점이 줄줄이 달렸어요. 두 시간 만에요!"
+        },
+        {
+          "say": "user",
+          "t": "저는 그 시간에 집에서 자고 있었어요…. 그 계정, 이틀 전에 PC방에서 로그인했다가 로그아웃한 게 마지막이에요."
+        },
+        {
+          "say": "me",
+          "t": "인증된 방문, 하룻밤에 다섯 가게, 이틀 전 PC방…. 지금까지 법정에서 봤던 구멍들이 한꺼번에 떠오르는군요."
+        },
+        {
+          "say": "dev",
+          "t": "또 당신입니까. 이번엔 다르죠. 다섯 건 모두 <b>정식 인증</b>을 통과했습니다. 시스템은 거짓말을 하지 않아요."
+        },
+        {
+          "gain": [
+            "complaint",
+            "records",
+            "serverLog",
+            "sched",
+            "dto",
+            "statement",
+            "token",
+            "logout",
+            "filter",
+            "dashboard",
+            "entity"
+          ],
+          "t": "법정 기록에 증거 11개가 들어왔다. 이번엔 증거가 많다. 무엇을 언제 쓸지 잘 골라야 한다."
+        },
+        {
+          "cross": "b1",
+          "title": "증언 ① 다섯 번 모두 정식 인증",
+          "who": "dev",
+          "lines": [
+            {
+              "t": "다섯 번 모두 가게 반경 50m 안에서 인증이 시작됐습니다.",
+              "press": [
+                [
+                  "dev",
+                  "시작할 때 서버가 거리를 직접 계산해요. 다섯 번 다 0.0m였죠."
+                ],
+                [
+                  "me",
+                  "(0.0m… 너무 정확하지 않나? 일단 기억해 두자.)"
+                ]
+              ]
+            },
+            {
+              "t": "그리고 다섯 번 모두 20분을 머문 뒤, 위치를 다시 확인하고 나서야 완료됐습니다.",
+              "press": [
+                [
+                  "dev",
+                  "완료 API에 위치 재확인이 있잖아요. 테스트도 있고요."
+                ],
+                [
+                  "me",
+                  "(이 다섯 건이 정말 그 완료 API로 끝났을까?)"
+                ]
+              ]
+            },
+            {
+              "t": "그러니 라멘공주가 그날 밤 다섯 가게를 직접 돈 겁니다.",
+              "press": [
+                [
+                  "dev",
+                  "기록이 그렇게 말해요."
+                ],
+                [
+                  "me",
+                  "(결론은 앞의 두 증언에 기대고 있다.)"
+                ]
+              ]
+            }
+          ],
+          "answer": {
+            "line": 1,
+            "ev": "serverLog"
+          },
+          "alt": {
+            "line": 1,
+            "ev": "sched",
+            "say": [
+              [
+                "me",
+                "스케줄러는 시간만 보고 VERIFIED로 바꿔요. 위치는 다시 보지 않죠."
+              ],
+              [
+                "dev",
+                "스케줄러에 그런 면이 있는 건 압니다. 그런데 이번 다섯 건이 스케줄러로 끝났다는 증거는요?"
+              ],
+              [
+                "me",
+                "(그날 실제로 어떤 경로로 완료됐는지 보여 주는 기록이 필요하다.)"
+              ]
+            ]
+          },
+          "hint": "다섯 건이 ‘어떤 경로로’ 완료됐는지 남아 있는 기록이 있다. (1화를 떠올려 보자)",
+          "win": [
+            [
+              "me",
+              "서버 로그를 보세요. 완료는 전부 <b>[VerificationScheduler]</b>가 했고, 위치를 재확인하는 <code>/verify</code>는 <b>한 번도 호출되지 않았어요.</b>"
+            ],
+            [
+              "me",
+              "1화에서 밝혔듯이 스케줄러는 <b>경과 시간만</b> 봐요. 시작만 하면 20분 뒤엔 어디에 있든 VERIFIED입니다."
+            ],
+            [
+              "devSweat",
+              "으윽… 좋아요, 완료는 스케줄러였다 칩시다. 하지만 <b>시작</b>할 때는 서버가 50m 안인지 직접 쟀다고요! 다섯 번 다 가게 앞에 있었던 건 확실합니다!"
+            ],
+            [
+              "judge",
+              "변호인. ‘서버가 쟀다’는 그 거리의 정체를 밝혀 보세요."
+            ]
+          ]
+        },
+        {
+          "combine": [
+            "records",
+            "dto"
+          ],
+          "result": "coord",
+          "t": "서버가 ‘직접 쟀다’는 0.0m. 그 계산에 쓰인 좌표는 어디서 왔을까?\n두 증거를 조합해 보자.",
+          "wrong": "그 둘로는 거리의 정체가 안 나온다.",
+          "got": "인증 기록의 <b>0.0m × 5, 1분 만에 12km</b>와, 요청 본문의 <b>latitude / longitude</b>…!\n새 증거 <b>📌 위치는 클라이언트가 보낸 숫자</b>를 얻었다."
+        },
+        {
+          "cross": "b2",
+          "title": "증언 ② 서버가 거리를 쟀다",
+          "who": "devSweat",
+          "lines": [
+            {
+              "t": "인증을 시작할 때 거리 계산은 서버가 합니다. 하버사인 공식으로요.",
+              "press": [
+                [
+                  "dev",
+                  "LocationUtils.calculateDistance. 지구 반지름까지 넣은 정확한 공식이에요."
+                ],
+                [
+                  "me",
+                  "(공식은 정확하다. 문제는 공식에 ‘무엇을’ 넣었느냐다.)"
+                ]
+              ]
+            },
+            {
+              "t": "그러니 다섯 번 모두 실제로 가게 앞에 서 있었다는 게 증명됩니다.",
+              "press": [
+                [
+                  "dev",
+                  "서버 계산을 못 믿으면 뭘 믿겠어요."
+                ],
+                [
+                  "me",
+                  "(조합한 추리와 정면으로 부딪히는 말이다.)"
+                ]
+              ]
+            },
+            {
+              "t": "0.0m라니, 그날 GPS가 아주 잘 잡혔나 봐요.",
+              "press": [
+                [
+                  "dev",
+                  "요즘 폰 GPS 좋잖아요."
+                ],
+                [
+                  "me",
+                  "(진짜 GPS가 다섯 번 연속 정확히 0.0m? 그럴 리가.)"
+                ]
+              ]
+            }
+          ],
+          "answer": {
+            "line": 1,
+            "ev": "coord"
+          },
+          "alt": {
+            "line": 1,
+            "ev": "records",
+            "say": [
+              [
+                "me",
+                "1번 가게 완료 1분 뒤에 <b>12.4km</b> 떨어진 가게에서 시작했어요."
+              ],
+              [
+                "devSweat",
+                "차, 차로 엄청 빨리 달렸겠죠! 서버가 50m 안이라고 계산했으니 거기 있었던 건 맞아요!"
+              ],
+              [
+                "me",
+                "(‘서버가 계산했다’는 말의 함정을 짚어야 한다. 조합한 추리를 쓰자.)"
+              ]
+            ]
+          },
+          "hint": "그 거리를 계산할 때 쓴 좌표는 누가 보낸 값이지?",
+          "win": [
+            [
+              "me",
+              "서버가 계산한 건 맞아요. 그런데 계산에 넣은 좌표는 <b>클라이언트가 요청 본문에 적어 보낸 숫자</b>예요. 서버는 그게 진짜 GPS인지 확인하지 않습니다."
+            ],
+            [
+              "me",
+              "다섯 번 모두 0.0m, 즉 <b>가게 좌표를 그대로 적어 보낸 것</b>이에요. 진짜 GPS는 몇 m씩 흔들리죠. 게다가 12km를 1분 만에 이동했고요."
+            ],
+            [
+              "devSweat",
+              "크윽…! 조, 좌표를 조작했다 쳐도! 모든 요청은 <b>라멘공주 본인의 유효한 토큰</b>으로 왔어요. 본인이 한 짓이라고요!"
+            ],
+            [
+              "judge",
+              "증인, 토큰에 대해 증언하세요."
+            ]
+          ]
+        },
+        {
+          "cross": "b3",
+          "title": "증언 ③ 본인의 토큰이었다",
+          "who": "devSweat",
+          "lines": [
+            {
+              "t": "새벽 요청에는 전부 라멘공주의 유효한 토큰이 실려 있었습니다.",
+              "press": [
+                [
+                  "dev",
+                  "서명도 맞고, 만료도 안 됐어요."
+                ],
+                [
+                  "me",
+                  "(유효한 건 맞다. 그런데 ‘어떤’ 토큰이지?)"
+                ]
+              ]
+            },
+            {
+              "t": "그날 밤 라멘공주가 로그인해서 받은 액세스 토큰이니, 본인이 맞습니다.",
+              "press": [
+                [
+                  "dev",
+                  "액세스 토큰이 없으면 API를 못 부르잖아요."
+                ],
+                [
+                  "me",
+                  "(그날 밤 로그인 기록이 있었던가? 그리고 그 토큰의 만료일은…)"
+                ]
+              ]
+            },
+            {
+              "t": "본인이 아니면 그 토큰을 가질 방법이 없어요.",
+              "press": [
+                [
+                  "dev",
+                  "토큰은 본인 브라우저에만 있으니까요."
+                ],
+                [
+                  "me",
+                  "(브라우저의 ‘어디에’ 있었더라. 그리고 공용 PC방이었지.)"
+                ]
+              ]
+            }
+          ],
+          "answer": {
+            "line": 1,
+            "ev": "token"
+          },
+          "alt": {
+            "line": 2,
+            "ev": "statement",
+            "say": [
+              [
+                "me",
+                "라멘공주는 이틀 전 <b>PC방</b>에서 로그인했어요. 자리를 비운 사이 옆자리 사람이 앉아 있었고요. 프론트는 토큰을 localStorage에 둡니다."
+              ],
+              [
+                "devSweat",
+                "진술일 뿐이잖아요! 그날 밤 받은 액세스 토큰이라니까요!"
+              ],
+              [
+                "me",
+                "(그 토큰의 정체를 숫자로 보여 주자.)"
+              ]
+            ]
+          },
+          "hint": "새벽 토큰의 만료일과 발급 시각을 확인해 보자. (3화를 떠올려 보자)",
+          "win": [
+            [
+              "me",
+              "…Zx7p의 발급은 <b>10/10 19:00</b>, 만료는 <b>10/24</b>, 14일짜리예요. 이틀 전 PC방 로그인 때 받은 <b>리프레시 토큰</b>과 똑같습니다. 그날 밤 로그인 기록은 아예 없고요."
+            ],
+            [
+              "me",
+              "3화에서 봤듯이 두 토큰은 exp 말고 똑같아서, 필터는 리프레시 토큰도 액세스 토큰처럼 통과시켜요. 범인은 PC방에서 복사한 리프레시 토큰을 <b>Bearer에 그대로</b> 넣었습니다."
+            ],
+            [
+              "devSweat",
+              "크아악…! 그, 그래도 괜찮아요. 방금 라멘공주 계정을 <b>강제 로그아웃</b>시켰거든요. 이제 범인은 끝입니다!"
+            ]
+          ]
+        },
+        {
+          "combine": [
+            "logout",
+            "filter"
+          ],
+          "result": "pass",
+          "t": "강제 로그아웃이면 정말 끝일까?\n로그아웃이 하는 일과, 요청을 통과시키는 기준을 조합해 보자.",
+          "wrong": "그 둘로는 답이 안 나온다.",
+          "got": "로그아웃은 <b>DB 칸만 비우고</b>, 필터는 <b>DB를 안 본다</b>…!\n새 증거 <b>📌 로그아웃이 못 막는 출입증</b>을 얻었다."
+        },
+        {
+          "cross": "b4",
+          "title": "증언 ④ 로그아웃시켰으니 끝",
+          "who": "devSweat",
+          "lines": [
+            {
+              "t": "로그아웃하면 DB에 저장된 리프레시 토큰이 지워집니다.",
+              "press": [
+                [
+                  "dev",
+                  "updateRefreshToken(null). 확인했어요."
+                ],
+                [
+                  "me",
+                  "(사실이다. 문제는 ‘그래서 무엇이 막히느냐’다.)"
+                ]
+              ]
+            },
+            {
+              "t": "그러니 범인이 가진 토큰은 이제 아무 데도 쓸 수 없습니다.",
+              "press": [
+                [
+                  "dev",
+                  "DB에 없는 토큰이니까요."
+                ],
+                [
+                  "me",
+                  "(DB를 확인하는 곳이 어디였지?)"
+                ]
+              ]
+            },
+            {
+              "t": "재발급도 막혔으니 완벽하게 차단된 거죠.",
+              "press": [
+                [
+                  "dev",
+                  "/auth/refresh는 DB 값과 비교하니까요."
+                ],
+                [
+                  "me",
+                  "(재발급이 막힌 건 맞다. 재발급 ‘말고’는?)"
+                ]
+              ]
+            }
+          ],
+          "answer": {
+            "line": 1,
+            "ev": "pass"
+          },
+          "hint": "DB를 확인하는 건 재발급 API뿐이었다. 다른 API는?",
+          "win": [
+            [
+              "me",
+              "DB와 비교하는 건 <code>/auth/refresh</code>뿐이에요. 다른 모든 API 앞의 필터는 <b>서명과 만료만</b> 봅니다. …Zx7p는 <b>10/24까지</b> 리뷰도, 인증도 계속 쓸 수 있어요."
+            ],
+            [
+              "me",
+              "지금 당장 막으려면 토큰 종류 구분(type 클레임 + 필터는 access만)이나, 서명 키 교체로 기존 토큰을 전부 무효화하는 수밖에 없습니다."
+            ],
+            [
+              "devSweat",
+              "으윽…. 조, 좋아요. 대신 피해 규모는 제 <b>탐지 대시보드</b>로 금방 찾을 수 있어요. 쿼리가 좀 많긴 한데, Fetch Join만 붙이면 가게 2만 개도 순식간이죠!"
+            ],
+            [
+              "judge",
+              "…증인, 그 대시보드에 대해 증언하세요."
+            ]
+          ]
+        },
+        {
+          "cross": "b5",
+          "title": "증언 ⑤ Fetch Join이면 순식간",
+          "who": "devSweat",
+          "lines": [
+            {
+              "t": "대시보드는 가게마다 리뷰 수, 평균 평점, 인증 수를 보여 줍니다.",
+              "press": [
+                [
+                  "dev",
+                  "가게 약 2만 개를 한 화면에서 보는 거죠."
+                ],
+                [
+                  "me",
+                  "(가게마다 숫자 세 개. 그걸 어떻게 가져오고 있지?)"
+                ]
+              ]
+            },
+            {
+              "t": "쿼리가 좀 많은 건 N+1이라서예요. Fetch Join 한 줄이면 해결됩니다.",
+              "press": [
+                [
+                  "dev",
+                  "연관 엔티티를 같이 가져오면 되잖아요."
+                ],
+                [
+                  "me",
+                  "(6화에서 같은 말을 들었다. 이번에도 원인부터 보자.)"
+                ]
+              ]
+            },
+            {
+              "t": "가게 2만 개면 쿼리도 2만 번쯤이니 감당할 만합니다.",
+              "press": [
+                [
+                  "dev",
+                  "요즘 DB 빠르잖아요."
+                ],
+                [
+                  "me",
+                  "(가게당 몇 번씩 부르고 있었지? 세어 보자.)"
+                ]
+              ]
+            }
+          ],
+          "answer": {
+            "line": 1,
+            "ev": "dashboard"
+          },
+          "alt": {
+            "line": 1,
+            "ev": "entity",
+            "say": [
+              [
+                "me",
+                "Restaurant 엔티티에는 리뷰 목록 같은 연관 필드가 없어요."
+              ],
+              [
+                "devSweat",
+                "그건 엔티티 얘기고요! 대시보드 쿼리는 Fetch Join으로 줄일 수 있다니까요!"
+              ],
+              [
+                "me",
+                "(대시보드 코드가 쿼리를 ‘어떻게’ 부르는지 보여 주자.)"
+              ]
+            ]
+          },
+          "hint": "대시보드 코드는 쿼리를 어디서, 어떻게 부르고 있지? (6화를 떠올려 보자)",
+          "win": [
+            [
+              "me",
+              "대시보드 코드를 보세요. <code>.map</code> 안에서 리포지토리 메서드를 <b>직접</b> 세 번씩 불러요. 지연 로딩이 아니니 Fetch Join은 대상조차 없습니다."
+            ],
+            [
+              "me",
+              "쿼리 수는 2만 번이 아니라 <b>1 + 2만 × 3 = 60,001번</b>이에요. 가게별로 GROUP BY 하는 집계 쿼리 세 번이면 끝납니다. 리뷰 수와 평점은 한 쿼리로 묶을 수도 있고요."
+            ],
+            [
+              "devSweat",
+              "으아아아악─!!!"
+            ],
+            [
+              "dev",
+              "…전부 인정합니다. 완료는 시간만 봤고, 위치는 클라이언트 숫자를 믿었고, 토큰은 종류를 안 봤고, 로그아웃은 재발급만 막았고, 대시보드는 반복문 쿼리였어요."
+            ],
+            [
+              "judge",
+              "증인의 자백을 기록하겠습니다. 변호인, 이제 뒷수습과 재발 방지를 들어 보죠."
+            ]
+          ]
+        },
+        {
+          "choice": "judge",
+          "t": "피해를 정리하려면 다섯 건의 인증을 FAILED로 바꾸고, 리뷰를 숨기고, 방문 기록을 되돌려야 합니다. 셋 중 하나라도 실패하면 <b>전부 되돌려야</b> 하죠. 어떻게 구현합니까?",
+          "options": [
+            {
+              "t": "서비스 안의 public 메서드에서 this.revertAll()을 부르고, revertAll()에만 @Transactional을 붙인다",
+              "ok": false,
+              "fb": "같은 클래스 안의 this 호출은 프록시를 거치지 않는다. @Transactional은 무시되고, 저장이 하나씩 따로 커밋된다. (2화)"
+            },
+            {
+              "t": "세 작업을 각각 @Transactional 메서드로 만들고, 컨트롤러에서 차례로 부른다",
+              "ok": false,
+              "fb": "트랜잭션이 세 개로 나뉜다. 두 번째가 실패하면 첫 번째는 이미 커밋된 뒤다."
+            },
+            {
+              "t": "컨트롤러가 주입받아 부르는 public 메서드 cleanupAttack()에 @Transactional을 붙이고, 그 안에서 세 작업을 한다",
+              "ok": true
+            },
+            {
+              "t": "세 작업을 try-catch로 감싸고, 실패하면 로그만 남긴다",
+              "ok": false,
+              "fb": "예외를 삼키면 롤백되지 않는다. 반쯤 정리된 상태로 ‘성공’이 된다."
+            }
+          ],
+          "win": [
+            [
+              "judge",
+              "바깥 메서드에 트랜잭션을 걸고, 프록시를 거쳐 들어오게 한다…."
+            ],
+            [
+              "me",
+              "네. 2화의 교훈 그대로예요. 안의 save()들은 같은 트랜잭션에 참여하고, 하나라도 실패하면 함께 롤백됩니다. 그리고 이건 Mockito 단위 테스트로는 확인이 안 되니 통합 테스트로 검증해야 해요."
+            ]
+          ]
+        },
+        {
+          "choice": "judge",
+          "t": "마지막입니다. 좌표가 클라이언트 숫자라면, 위치만으로는 방문을 증명할 수 없군요. RamenLog에 계획된 <b>영수증 사진 인증</b>을 Vision Bot 경험으로 설계한다면, 가장 먼저 챙길 것은?",
+          "options": [
+            {
+              "t": "OCR 프롬프트에 ‘이게 영수증인가?’ 질문을 같이 넣어서 한 번에 처리한다",
+              "ok": false,
+              "fb": "Vision Bot 실험 10의 시도 A다. 같은 프롬프트에 섞었더니 기존 특징까지 흔들렸다. (5화)"
+            },
+            {
+              "t": "가게 이름이 비슷하면 통과시키고, 기준값은 샘플 몇 개로 정한다",
+              "ok": false,
+              "fb": "11쌍으로 정한 0.92도 새 질문에서 0.932 오적중이 났다. 몇 개의 샘플로 정한 기준값은 겹치는 구간을 못 나눈다. (4화)"
+            },
+            {
+              "t": "영수증이 아닌 사진을 거르는 별도 관문을 두고, 영수증·비영수증 평가 세트를 따로 모아 측정부터 한다",
+              "ok": true
+            },
+            {
+              "t": "VLM을 영수증 데이터로 파인튜닝하는 것부터 시작한다",
+              "ok": false,
+              "fb": "Vision Bot은 모델을 학습시키지 않고 구조와 문서, 프롬프트로 28% → 60%를 만들었다. 측정 기준선 없이 학습부터 하면 무엇이 좋아졌는지 알 수 없다."
+            }
+          ],
+          "win": [
+            [
+              "judge",
+              "관문과 평가 세트…. 지금까지의 사건이 다 들어 있군요."
+            ],
+            [
+              "me",
+              "네. 5화의 <b>닫힌 집합 → 별도 관문</b>, 4화의 <b>적은 샘플로 정한 기준값의 위험</b>, 그리고 Vision Bot 전체의 <b>측정부터 하기</b>. RamenLog의 영수증 인증은 원래 Vision Bot과 이어지도록 계획한 기능이에요."
+            ],
+            [
+              "me",
+              "물론 영수증도 위조할 수 있으니, 위치·영수증·결제 시각처럼 <b>독립된 증거를 여러 개</b> 겹치는 게 핵심이에요. 하나만 믿으면 이번 밤처럼 뚫립니다."
+            ]
+          ]
+        },
+        {
+          "verdict": true
+        }
+      ],
+      "verdict": {
+        "say": "본 법정은 10월 12일 새벽의 다섯 리뷰가 <b>탈취된 리프레시 토큰과 조작된 좌표로 만든 가짜 방문</b>이었다고 판단합니다.\n리뷰 삭제, 인증 무효화, 그리고 다섯 가지 결함의 수정을 선고합니다. 이상, 폐정!",
+        "quote": "RamenLog의 방문 인증은 여러 겹의 구멍이 이어져 있었습니다. 시작할 때의 거리는 클라이언트가 보낸 좌표로 계산했고, 완료는 5초마다 도는 스케줄러가 경과 시간만 보고 처리했습니다. 인증 필터는 토큰 종류를 보지 않아서 리프레시 토큰도 액세스 토큰처럼 통과했고, 로그아웃은 DB의 리프레시 토큰만 지워서 재발급만 막았습니다. 그래서 한 계정으로 하룻밤에 다섯 가게를 ‘인증’하는 공격이 가능했습니다. 수정은 완료 경로를 위치 재확인 하나로 모으고, 토큰에 type을 넣고, 정리 작업은 바깥 public 메서드 하나의 트랜잭션으로 묶고, 장기적으로는 영수증 인증처럼 독립된 증거를 더하는 방향입니다. 하나의 증거만 믿으면 뚫린다는 게 이 사건의 교훈입니다.",
+        "clues": [
+          "1화: 자동 완료 스케줄러는 경과 시간만 본다 → 시작만 하면 20분 뒤 VERIFIED",
+          "보스전 새 단서: 시작 시 거리는 <b>클라이언트가 보낸 좌표</b>로 계산 → 0.0m × 5, 1분에 12km",
+          "3화: 리프레시 토큰이 Bearer로 통과 / 로그아웃은 /auth/refresh만 막는다",
+          "6화: 반복문 안 리포지토리 직접 호출 → Fetch Join 대상 없음, GROUP BY 집계로",
+          "2화: 정리 작업은 프록시를 거치는 바깥 public 메서드 하나의 @Transactional로",
+          "4·5화: 새 인증 수단은 별도 관문 + 따로 모은 평가 세트로 측정부터",
+          "교훈: 독립된 증거를 겹쳐라. 하나만 믿으면 뚫린다"
+        ]
+      }
+    }
+  ]
+}

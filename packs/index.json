@@ -1,0 +1,6 @@
+{
+  "packs": [
+    { "id": "java-basics", "title": "Java 기초 법정", "language": "Java", "blurb": "정수 나눗셈, == 와 equals, Integer 캐시, 문자열 불변. 쉬운 함정부터 반례로 반박해요.", "soon": true },
+    { "id": "ramen-sample", "file": "packs/_test/ramen-sample.json", "title": "라멘 코드 법정 (테스트용)", "blurb": "엔진 회귀 테스트용 팩", "test": true }
+  ]
+}
