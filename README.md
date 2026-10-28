@@ -15,7 +15,9 @@ js/ui.js                  화면. 판정은 core.js에 맡긴다
 js/validate.js            사건팩 검증 규칙 (브라우저 편집기와 CI가 같이 쓴다)
 packs-src/*.js            사건 원고 (사람이 쓰는 곳). npm run build → packs/<id>.json
 packs/index.json          코스 목록
-packs/java-basics.json    Java 기초 법정 (사건 4개 + 보스)
+packs-src/_helpers.js     원고 공용 도우미 (ev / runEv / spec). _로 시작하는 원고는 팩으로 빌드하지 않는다
+packs/java-basics.json    Java 1단계 기초 법정 (사건 4개 + 보스)
+packs/java-collections.json  Java 2단계 컬렉션 법정 (사건 4개 + 보스)
 packs/_test/              엔진 회귀 테스트용 팩 (#dev에서만 보임)
 tools/build-packs.js      원고 → JSON (--check: 빌드 결과가 커밋된 파일과 같은지)
 tools/validate.js         node tools/validate.js <팩>

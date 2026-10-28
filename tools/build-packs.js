@@ -11,7 +11,8 @@ const srcDir = path.join(root, "packs-src");
 const check = process.argv.includes("--check");
 let stale = false;
 
-for (const name of fs.readdirSync(srcDir).filter(n => n.endsWith(".js")).sort()) {
+// _로 시작하는 파일(공용 도우미)은 팩이 아니다
+for (const name of fs.readdirSync(srcDir).filter(n => n.endsWith(".js") && !n.startsWith("_")).sort()) {
   const pack = require(path.join(srcDir, name));
   const out = path.join(root, "packs", `${pack.id}.json`);
   const json = JSON.stringify(pack, null, 2) + "\n";
