@@ -23,6 +23,12 @@
   function esc(s) { return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
   // 대사 꾸밈은 <b>와 <code>만 살린다. 나머지 태그는 글자 그대로 보인다
   function rich(s) { return esc(s).replace(/&lt;(\/?)(b|code)&gt;/g, "<$1$2>"); }
+  // 피셔-예이츠 섞기 (새 배열을 돌려준다)
+  function shuffled(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
 
   /* ---------- 홈: 코스(팩) 목록 ---------- */
   function showHome() {
@@ -43,7 +49,8 @@
 
   async function openPack(entry) {
     try {
-      const res = await fetch(entry.file);
+      // no-cache: 캐시가 있어도 서버에 바뀌었는지 먼저 물어본다 (안 바뀌었으면 304로 빠르게 끝남)
+      const res = await fetch(entry.file, { cache: "no-cache" });
       if (!res.ok) throw new Error(res.status);
       pack = await res.json();
       showPack();
@@ -167,8 +174,9 @@
       setSpeaker(st.choice); setText(st.t); setTag("");
       actions([recordBtn()]);
       const area = $("choiceArea"); area.className = "choices";
-      st.options.forEach((o, idx) => {
-        const b = document.createElement("button"); b.className = "choice"; b.textContent = o.t;
+      // 정답 위치로 찍지 못하게 그릴 때마다 순서를 섞는다. 판정은 원래 번호(idx)로 한다
+      shuffled(st.options.map((o, idx) => ({ o, idx }))).forEach(({ o, idx }) => {
+        const b = document.createElement("button"); b.className = "choice" + (o.code ? " code" : ""); b.textContent = o.t;
         b.addEventListener("click", () => {
           const r = Core.choose(C, S, idx);
           if (r.ok) { area.innerHTML = ""; shout("이의 있음!"); setTimeout(() => playLines(r.lines, next), 650); }
@@ -301,9 +309,14 @@
     if (e.key === "Enter" && screen === "case" && $("sheet").hidden && primaryAction && document.activeElement?.tagName !== "BUTTON") primaryAction();
   });
 
+  // 오프라인에서도 열리게 서비스 워커 등록 (지원하지 않는 브라우저에서는 그냥 넘어간다)
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+  }
+
   async function start() {
     try {
-      const res = await fetch("packs/index.json");
+      const res = await fetch("packs/index.json", { cache: "no-cache" });
       packs = (await res.json()).packs || [];
     } catch (e) { packs = []; }
     showHome();

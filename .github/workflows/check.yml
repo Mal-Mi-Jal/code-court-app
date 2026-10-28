@@ -12,4 +12,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # 사건 속 실행 결과를 실제 JDK로 다시 돌려 확인한다 (tools/verify-run.js)
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
       - run: npm run check

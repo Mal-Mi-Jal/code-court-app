@@ -83,6 +83,8 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .choices { display: grid; gap: 8px; }
 .choice { text-align: left; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; }
 .choice:hover { border-color: var(--brass); }
+/* 코드 선택지: 한 문장에 한 줄, 길면 상자 안에서만 가로로 넘긴다 */
+.choice.code { font-family: var(--f-code); font-size: .82rem; line-height: 1.6; white-space: pre; overflow-x: auto; min-width: 0; }
 
 /* objection overlay */
 .shout { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 30; }

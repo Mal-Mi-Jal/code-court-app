@@ -31,6 +31,7 @@
     if (!Array.isArray(pack.cases) || pack.cases.length === 0) { err("cases", "사건이 없습니다"); return { errors, warnings }; }
 
     const ids = new Set();
+    const answerLines = [];   // 증언 정답 줄 위치 (전부 같으면 찍기 쉬워진다)
     pack.cases.forEach((c, ci) => {
       const P = `cases[${ci}]`;
       if (!isStr(c.id)) err(`${P}.id`, "사건 id가 없습니다");
@@ -56,7 +57,8 @@
       const checkSpeaker = (path, key) => { if (!chars[key]) err(path, `등장인물 '${key}'가 없습니다`); };
       const checkText = (path, t) => {
         if (!isStr(t)) { err(path, "대사가 없습니다"); return; }
-        const rest = t.replace(ALLOWED_TAGS, "");
+        // <code> 안의 List<Integer> 같은 제네릭은 태그가 아니다 (화면에서는 글자 그대로 보인다)
+        const rest = t.replace(/<code>[\s\S]*?<\/code>/g, "").replace(ALLOWED_TAGS, "");
         if (/<\/?[a-zA-Z]/.test(rest)) warn(path, "허용하지 않은 태그가 있습니다 (<b>, <code>만 가능)");
       };
       const checkLines = (path, lines) => {
@@ -91,6 +93,7 @@
           (st.lines || []).forEach((ln, j) => { checkText(`${S}.lines[${j}].t`, ln.t); checkLines(`${S}.lines[${j}].press`, ln.press); });
           const a = st.answer || {};
           if (!(Number.isInteger(a.line) && a.line >= 0 && a.line < n)) err(`${S}.answer.line`, "정답 줄이 범위 밖입니다");
+          else answerLines.push(a.line);
           needEv(`${S}.answer.ev`, a.ev, have);
           if (st.alt) {
             if (!(Number.isInteger(st.alt.line) && st.alt.line >= 0 && st.alt.line < n)) err(`${S}.alt.line`, "대체 증거 줄이 범위 밖입니다");
@@ -134,6 +137,14 @@
         if (!used) warn(`${P}.evidence.${id}`, "어디에서도 쓰지 않는 증거입니다");
       });
     });
+
+    // 선택지는 화면이 섞어 주지만, 증언 순서는 원고 그대로다. 정답 줄이 한 자리에 몰리면 경고한다
+    if (answerLines.length >= 3) {
+      const counts = {};
+      answerLines.forEach(l => { counts[l] = (counts[l] || 0) + 1; });
+      const [line, most] = Object.entries(counts).sort((x, y) => y[1] - x[1])[0];
+      if (most / answerLines.length > 0.6) warn("cases", `증언 정답 줄이 ${answerLines.length}개 중 ${most}개가 ${Number(line) + 1}번째입니다 (위치를 섞어 주세요)`);
+    }
 
     return { errors, warnings };
   }

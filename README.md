@@ -13,18 +13,30 @@ index.html, css/app.css   화면 뼈대와 스타일
 js/core.js                엔진 순수 로직 (판정·신뢰도·조합·선택지). 브라우저와 Node가 같이 쓴다
 js/ui.js                  화면. 판정은 core.js에 맡긴다
 js/validate.js            사건팩 검증 규칙 (브라우저 편집기와 CI가 같이 쓴다)
+packs-src/*.js            사건 원고 (사람이 쓰는 곳). npm run build → packs/<id>.json
 packs/index.json          코스 목록
+packs/java-basics.json    Java 기초 법정 (사건 4개 + 보스)
 packs/_test/              엔진 회귀 테스트용 팩 (#dev에서만 보임)
+tools/build-packs.js      원고 → JSON (--check: 빌드 결과가 커밋된 파일과 같은지)
 tools/validate.js         node tools/validate.js <팩>
 tools/autoplay.js         node tools/autoplay.js <팩>  — 화면 없이 사건을 끝까지 풀어 본다
+tools/verify-run.js       증거 속 Java 코드를 JDK로 실제 실행해 출력이 사건과 같은지 확인
 docs/case-format.md       사건팩 형식 (code-court/v1)
 ```
 
 ## 실행
 
 ```bash
-npm run check          # 문법 검사 + 팩 검증 + 자동 플레이
+npm run build          # 원고(packs-src) → 팩 JSON
+npm run check          # 문법 + 빌드 최신 여부 + 팩 검증 + 자동 플레이 + 실행 검증 (JDK 21 필요)
 python -m http.server 5173   # 그다음 http://127.0.0.1:5173 (개발용 팩은 #dev)
 ```
 
 `fetch`로 팩을 불러오기 때문에 `file://`로 열면 동작하지 않습니다. 로컬 서버로 여세요.
+
+## 웹앱(PWA)
+
+- `manifest.webmanifest` + `icons/`: 휴대폰에서 "홈 화면에 추가"하면 앱처럼 열린다 (아이콘은 도형으로 직접 그림)
+- `sw.js`: 네트워크 우선. 온라인이면 항상 최신 파일을 받아 캐시에 넣고, 오프라인이면 캐시로 연다 (한 번 연 코스는 오프라인 플레이 가능)
+- 파일을 바꾸면: `index.html`의 `?v=` 숫자와 `sw.js`의 `SHELL` 목록을 같이 올리고, 목록이 바뀌면 `VERSION`도 올린다
+- 선택지는 화면에 그릴 때마다 순서를 섞는다. 증언 정답 줄이 한 자리에 몰리면 검증기가 경고한다
