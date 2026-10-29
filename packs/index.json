@@ -1,8 +1,8 @@
 {
   "packs": [
-    { "id": "java-basics", "file": "packs/java-basics.json", "title": "Java 기초 법정", "language": "Java", "blurb": "정수 나눗셈, 오버플로, == 와 equals, Integer 캐시, 문자열 불변. 쉬운 함정부터 실행 결과로 반박해요." },
-    { "id": "java-collections", "file": "packs/java-collections.json", "title": "Java 컬렉션 법정", "language": "Java", "blurb": "2단계. HashMap 키, 반복 중 삭제, Arrays.asList, HashMap의 순서. 테스트에서만 통과하는 함정들을 반박해요." },
-    { "id": "java-objects", "file": "packs/java-objects.json", "title": "Java 객체·예외 법정", "language": "Java", "blurb": "3단계. 얕은 복사, finally와 return, 체크 예외와 원인, 제네릭 타입 소거. 조용히 틀리는 코드를 반박해요." },
+    { "id": "java-basics", "file": "packs/java-basics.json", "title": "Java 기초 법정", "language": "Java", "chapter": 1, "topic": "기본 타입·문자열", "blurb": "정수 나눗셈, 오버플로, == 와 equals, Integer 캐시, 문자열 불변. 쉬운 함정부터 실행 결과로 반박해요." },
+    { "id": "java-collections", "file": "packs/java-collections.json", "title": "Java 컬렉션 법정", "language": "Java", "chapter": 2, "topic": "컬렉션", "blurb": "HashMap 키, 반복 중 삭제, Arrays.asList, HashMap의 순서. 테스트에서만 통과하는 함정들을 반박해요." },
+    { "id": "java-objects", "file": "packs/java-objects.json", "title": "Java 객체·예외 법정", "language": "Java", "chapter": 3, "topic": "객체·예외", "blurb": "얕은 복사, finally와 return, 체크 예외와 원인, 제네릭 타입 소거. 조용히 틀리는 코드를 반박해요." },
     { "id": "ramen-sample", "file": "packs/_test/ramen-sample.json", "title": "라멘 코드 법정 (테스트용)", "blurb": "엔진 회귀 테스트용 팩", "test": true }
   ]
 }

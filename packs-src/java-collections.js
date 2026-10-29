@@ -1,4 +1,4 @@
-// Java 2단계 — 컬렉션 법정 원고
+// Java 2챕터 — 컬렉션 법정 원고
 // 빌드: node tools/build-packs.js → packs/java-collections.json
 // 실행 결과 증거(run)는 tools/verify-run.js가 JDK로 실제로 돌려서 확인한다 (import java.util.* 자동 포함).
 const { ev, runEv, spec, COMMON } = require("./_helpers");
@@ -21,8 +21,8 @@ module.exports = {
   id: "java-collections",
   title: "Java 컬렉션 법정",
   language: "Java",
-  blurb: "2단계. HashMap 키, 반복 중 삭제, Arrays.asList, HashMap의 순서. 테스트에서만 통과하는 함정들을 반박해요.",
-  lead: "2단계는 컬렉션이에요. 이번 증인은 ‘테스트해 봤는데 됐어요’를 자주 말합니다. 그 테스트가 왜 우연히 통과했는지까지 밝혀 보세요. 실행 결과는 모두 JDK 21로 실제로 돌린 값이에요.",
+  blurb: "HashMap 키, 반복 중 삭제, Arrays.asList, HashMap의 순서. 테스트에서만 통과하는 함정들을 반박해요.",
+  lead: "2챕터는 컬렉션이에요. 1챕터보다 힌트가 조금 줄어요. 이번 증인은 ‘테스트해 봤는데 됐어요’를 자주 말합니다. 그 테스트가 왜 우연히 통과했는지까지 밝혀 보세요. 실행 결과는 모두 JDK 21로 실제로 돌린 값이에요.",
   commonCharacters: COMMON,
   cases: [
     /* ---------------- 1화 ---------------- */
@@ -80,7 +80,7 @@ System.out.println(a.hashCode() == b.hashCode());`, "3, 5\nPoint[x=3, y=5]\ntrue
             { t: "제가 테스트할 때는 저장한 좌표로 찾으니 분식집이 잘 나왔어요.",
               press: [["wit", "shops.get(p) 하니까 바로 나오던데요."], ["me", "(그 p는 저장할 때 쓴 바로 그 객체였다. 실제 앱도 그럴까?)"]] },
             { t: "그러니 같은 좌표 (3, 5)로 찾으면 언제나 가게가 나옵니다.",
-              press: [["wit", "3은 3이고 5는 5니까요."], ["me", "(실제 앱은 누를 때마다 Point를 새로 만든다. 그렇게 돌려 본 기록이 있다.)"]] }
+              press: [["wit", "3은 3이고 5는 5니까요."], ["me", "(실제 앱은 누를 때마다 Point를 새로 만든다. 그래도 언제나 찾을까?)"]] }
           ],
           answer: { line: 2, ev: "run_get" },
           alt: { line: 2, ev: "spec_hash", say: [["me", "HashMap은 hashCode와 equals로 키를 찾아요. Point는 둘 다 재정의하지 않았고요."], ["wit", "어려운 규칙은 됐고요, 제 테스트는 잘 찾았다니까요!"], ["me", "(실제 앱처럼 새 Point로 찾은 결과를 보여 주자.)"]] },
@@ -92,7 +92,7 @@ System.out.println(a.hashCode() == b.hashCode());`, "3, 5\nPoint[x=3, y=5]\ntrue
             ["judge", "변호인, HashMap이 키를 어떻게 찾는지 밝혀 보세요."]
           ] },
         { combine: ["spec_hash", "run_eq"], result: "twostep",
-          t: "equals를 재정의했는데도 null이 나왔다.\nHashMap이 키를 찾는 규칙과 그 실행 결과를 조합해 보자.",
+          t: "equals를 재정의했는데도 null이 나왔다.\nequals만 재정의한 결과와 맞물리는 증거를 찾아 조합해 보자.",
           wrong: "그 둘로는 이유가 안 나온다. HashMap이 키를 찾는 순서와, equals만 고쳤을 때의 결과를 나란히 놓아 보자.",
           got: "HashMap은 <b>hashCode로 칸부터</b> 고르고, 그 칸 안에서만 equals…!\n새 증거 <b>📌 두 단계 검색</b>을 얻었다." },
         { cross: "c1b", title: "증언 ② equals만 있으면 된다", who: "witSweat",
@@ -114,10 +114,10 @@ System.out.println(a.hashCode() == b.hashCode());`, "3, 5\nPoint[x=3, y=5]\ntrue
           ] },
         { choice: "judge", t: "Point를 HashMap 키로 쓰려면 어떻게 해야 합니까?",
           options: [
-            { t: "hashCode만 x, y 기준으로 재정의한다", fb: "같은 칸은 찾아가지만, 기본 equals는 같은 객체인지를 비교해서 여전히 null이다." },
-            { t: "HashMap 대신 TreeMap을 쓴다", fb: "TreeMap은 키를 정렬해야 해서, 비교 방법이 없는 Point를 넣으면 ClassCastException이 난다." },
-            { t: "equals와 hashCode를 같은 기준(x, y)으로 함께 재정의한다. 또는 Point를 record로 만든다", ok: true },
-            { t: "get 대신 containsKey로 먼저 확인한다", fb: "containsKey도 똑같이 hashCode와 equals로 찾는다. 결과는 false다." }
+            { t: "hashCode만 x, y 기준으로 재정의해 같은 칸을 찾게 한다", fb: "같은 칸은 찾아가지만, 기본 equals는 같은 객체인지를 비교해서 여전히 null이다." },
+            { t: "HashMap 대신 키를 정렬해 찾는 TreeMap을 쓴다", fb: "TreeMap은 키를 정렬해야 해서, 비교 방법이 없는 Point를 넣으면 ClassCastException이 난다." },
+            { t: "equals와 hashCode를 x, y 기준으로 함께 재정의한다", ok: true },
+            { t: "get 전에 containsKey로 키가 있는지 먼저 확인한다", fb: "containsKey도 똑같이 hashCode와 equals로 찾는다. 결과는 false다." }
           ],
           win: [
             ["judge", "equals와 hashCode는 한 쌍이군요."],
@@ -201,7 +201,7 @@ System.out.println(cart);`, "[튀김]"),
             ["judge", "변호인, 가운데 상품은 왜 통과했는지 밝혀 보세요."]
           ] },
         { combine: ["run_mid", "spec_iter"], result: "luck",
-          t: "가운데 상품은 왜 예외 없이 지워졌을까?\n테스트 결과와 for-each의 동작 규칙을 조합해 보자.",
+          t: "가운데 상품은 왜 예외 없이 지워졌을까?\n통과했던 테스트 결과와 맞물리는 증거를 찾아 조합해 보자.",
           wrong: "그 둘로는 이유가 안 나온다. 통과했던 테스트와, 반복 중에 예외가 나는 조건을 나란히 놓아 보자.",
           got: "가운데를 지우자 <b>hasNext()가 false</b>, 검사할 기회가 없었다…!\n새 증거 <b>📌 검사할 기회가 없었던 반복</b>을 얻었다." },
         { cross: "c2b", title: "증언 ② 인덱스 for문이면 안전하다", who: "witSweat",
@@ -209,7 +209,7 @@ System.out.println(cart);`, "[튀김]"),
             { t: "좋아요, for-each가 문제라는 건 인정할게요.",
               press: [["wit", "Iterator가 예민하네요."], ["me", "(예민한 게 아니라, 잘못된 변경을 바로 알려 주는 거다.)"]] },
             { t: "인덱스 for문으로 바꾸면 Iterator를 안 쓰니까, 품절 상품을 하나도 빠짐없이 지울 수 있어요.",
-              press: [["wit", "cart.remove(i). 예외도 안 나요."], ["me", "(예외는 안 난다. 그런데 ‘빠짐없이’일까? 연속으로 품절된 경우를 돌려 본 기록이 있다.)"]] },
+              press: [["wit", "cart.remove(i). 예외도 안 나요."], ["me", "(예외는 안 난다. 그런데 정말 ‘빠짐없이’일까?)"]] },
             { t: "앞으로 리스트 삭제는 전부 인덱스 for문으로 통일합시다.",
               press: [["wit", "규칙으로 정하죠."], ["me", "(규칙으로 정하기 전에 확인할 게 있다.)"]] }
           ],
@@ -225,8 +225,8 @@ System.out.println(cart);`, "[튀김]"),
           options: [
             { t: "for-each는 그대로 두고, 예외가 나면 try-catch로 무시한다", fb: "예외를 무시하면 지우다 만 장바구니가 남는다." },
             { t: "for-each 안에서 하나를 지우면 바로 break로 빠져나온다", fb: "예외는 피하지만 품절 상품이 여러 개면 하나만 지워진다." },
-            { t: "cart.removeIf(item -> soldOut.contains(item)) 처럼 한 번에 지운다 (또는 Iterator의 remove 사용)", ok: true },
-            { t: "인덱스 for문으로 cart.remove(i)를 쓴다", fb: "지울 때마다 뒤 상품이 당겨져서, 연속으로 품절된 상품을 건너뛴다." }
+            { t: "cart.removeIf(soldOut::contains)로 한 번에 지운다", ok: true },
+            { t: "Iterator를 안 쓰는 인덱스 for문으로 cart.remove(i)를 쓴다", fb: "지울 때마다 뒤 상품이 당겨져서, 연속으로 품절된 상품을 건너뛴다." }
           ],
           win: [
             ["judge", "반복과 삭제를 따로 하지 말고, 한 번에."],
@@ -294,7 +294,7 @@ System.out.println(menu);`, "[김밥, 라면, 튀김]"),
             { t: "메뉴는 처음에 김밥, 라면 두 개로 시작해요.",
               press: [["wit", "기본 메뉴죠."], ["me", "(여기까진 문제없다.)"]] },
             { t: "앱이 죽은 건 서버 메모리가 부족해서예요.",
-              press: [["wit", "요즘 손님이 많아서요."], ["me", "(메모리 탓을 하기 전에, add를 직접 해 본 기록이 있다.)"]] }
+              press: [["wit", "요즘 손님이 많아서요."], ["me", "(메모리 탓을 하기 전에, add가 정말 되는지부터 의심해 보자.)"]] }
           ],
           answer: { line: 0, ev: "run_add" },
           alt: { line: 0, ev: "run_class", say: [["me", "클래스 이름을 찍어 보면 <code>java.util.Arrays$ArrayList</code>예요. 우리가 아는 ArrayList가 아니에요."], ["wit", "이름에 ArrayList가 들어가잖아요! 그럼 ArrayList죠!"], ["me", "(add를 실제로 해 본 결과를 보여 주자.)"]] },
@@ -305,7 +305,7 @@ System.out.println(menu);`, "[김밥, 라면, 튀김]"),
             ["judge", "변호인, 그 리스트의 정체를 밝혀 보세요."]
           ] },
         { combine: ["run_class", "spec_aslist"], result: "wrapper",
-          t: "Arrays.asList가 돌려준 리스트는 대체 무엇일까?\n실제 클래스 이름과 Arrays 문서의 규칙을 조합해 보자.",
+          t: "Arrays.asList가 돌려준 리스트는 대체 무엇일까?\n실제 클래스 이름과 맞물리는 증거를 찾아 조합해 보자.",
           wrong: "그 둘로는 정체가 안 나온다. 실제 클래스 이름과, Arrays.asList가 무엇을 돌려준다고 적혀 있는지를 나란히 놓아 보자.",
           got: "Arrays 안의 <b>다른 ArrayList</b>, 배열을 감싼 <b>고정 크기</b> 리스트…!\n새 증거 <b>📌 배열을 감싼 리스트</b>를 얻었다." },
         { cross: "c3b", title: "증언 ② 배열과는 상관없다", who: "witSweat",
@@ -315,7 +315,7 @@ System.out.println(menu);`, "[김밥, 라면, 튀김]"),
             { t: "그래도 메뉴판 화면에 쓰기엔 충분하잖아요.",
               press: [["wit", "보여 주기만 하면 되니까요."], ["me", "(보여 주기만 한다면 그렇다. 그런데 원래 배열을 다른 곳에서 바꾸면?)"]] },
             { t: "Arrays.asList는 원래 배열을 복사한 새 리스트라서, 배열을 바꿔도 메뉴판은 그대로예요.",
-              press: [["wit", "복사본이니까요."], ["me", "(복사본일까? 배열을 바꿔 본 기록이 있다.)"]] }
+              press: [["wit", "복사본이니까요."], ["me", "(정말 복사본일까?)"]] }
           ],
           answer: { line: 2, ev: "run_view" },
           alt: { line: 2, ev: "wrapper", say: [["me", "Arrays.asList는 배열을 <b>감싼</b> 리스트예요. 복사본이 아니에요."], ["witSweat", "감쌌든 뭐든, 복사한 거나 마찬가지라니까요!"], ["me", "(배열을 바꿨을 때 메뉴판이 어떻게 되는지 보여 주자.)"]] },
@@ -328,8 +328,8 @@ System.out.println(menu);`, "[김밥, 라면, 튀김]"),
         { choice: "judge", t: "메뉴판은 어떻게 만들어야 합니까?",
           options: [
             { t: "Arrays.asList 그대로 쓰고, 신메뉴는 배열을 새로 만들어 다시 asList 한다", fb: "추가할 때마다 배열을 다시 만드는 셈이고, 배열과 연결되는 문제도 그대로다." },
-            { t: "List.of(\"김밥\", \"라면\")으로 바꾼다", fb: "List.of는 아예 바꿀 수 없는 리스트라서 add도 set도 UnsupportedOperationException이 난다." },
-            { t: "new ArrayList<>(Arrays.asList(base))처럼 새 ArrayList로 복사해서 쓴다", ok: true },
+            { t: "더 최신 방법인 List.of(\"김밥\", \"라면\")으로 바꾼다", fb: "List.of는 아예 바꿀 수 없는 리스트라서 add도 set도 UnsupportedOperationException이 난다." },
+            { t: "new ArrayList<>(Arrays.asList(base))로 복사해 쓴다", ok: true },
             { t: "add 전에 try-catch로 감싸서 실패하면 넘어간다", fb: "신메뉴가 조용히 빠질 뿐이다." }
           ],
           win: [
@@ -402,7 +402,7 @@ System.out.println(m.keySet());`, "[민지, 철수, 영희, 도윤, 하준]"),
             { t: "a, b, c 순서로 넣었더니 [a, b, c]로 나왔어요.",
               press: [["wit", "실행 결과로 봤어요."], ["me", "(결과는 맞다. 그게 ‘넣은 순서’ 때문일까?)"]] },
             { t: "그러니 HashMap은 넣은 순서를 기억합니다. 회원 목록도 가입 순서대로 나오죠.",
-              press: [["wit", "a, b, c가 증명했잖아요."], ["me", "(실제 회원 이름으로 돌려 본 기록이 있다.)"]] }
+              press: [["wit", "a, b, c가 증명했잖아요."], ["me", "(a, b, c 말고 실제 회원 이름이라면?)"]] }
           ],
           answer: { line: 2, ev: "run_real" },
           alt: { line: 2, ev: "spec_order", say: [["me", "문서에는 HashMap이 순서를 보장하지 않는다고 적혀 있어요."], ["wit", "제 테스트에선 순서대로 나왔다고요!"], ["me", "(실제 회원 이름으로 돌린 결과를 보여 주자.)"]] },
@@ -413,13 +413,13 @@ System.out.println(m.keySet());`, "[민지, 철수, 영희, 도윤, 하준]"),
             ["judge", "변호인, a, b, c 테스트가 통과한 이유를 밝혀 보세요."]
           ] },
         { combine: ["run_abc", "run_cab"], result: "luck",
-          t: "a, b, c는 왜 순서대로 나왔을까?\n순서대로 넣은 테스트와, 순서를 바꿔 넣은 테스트를 조합해 보자.",
+          t: "a, b, c는 왜 순서대로 나왔을까?\n단정해의 테스트와 맞물리는 증거를 찾아 조합해 보자.",
           wrong: "그 둘로는 이유가 안 나온다. a, b, c를 서로 다른 순서로 넣어 본 두 결과를 나란히 놓아 보자.",
           got: "c, a, b로 넣어도 <b>[a, b, c]</b>…! 넣은 순서가 아니라 <b>해시 값 순서</b>였다.\n새 증거 <b>📌 우연히 맞은 순서</b>를 얻었다." },
         { cross: "c4b", title: "증언 ② TreeMap이면 가입 순서", who: "witSweat",
           lines: [
             { t: "그럼 TreeMap을 쓰면 가입 순서대로 나오겠네요. 순서 있는 Map이니까요.",
-              press: [["wit", "Tree는 정리된 느낌이잖아요."], ["me", "(TreeMap의 순서는 무엇의 순서일까? 실제로 넣어 본 기록이 있다.)"]] },
+              press: [["wit", "Tree는 정리된 느낌이잖아요."], ["me", "(TreeMap의 순서는 무엇의 순서일까?)"]] },
             { t: "a, b, c 테스트가 운이었다는 건 인정할게요.",
               press: [["wit", "해시 값이 마침 그랬다니."], ["me", "(테스트 값이 너무 단순하면 이런 일이 생긴다.)"]] },
             { t: "어쨌든 순서는 Map 종류만 바꾸면 해결되는 문제예요.",
@@ -461,7 +461,7 @@ System.out.println(m.keySet());`, "[민지, 철수, 영희, 도윤, 하준]"),
 
     /* ---------------- 보스 ---------------- */
     {
-      id: "cboss", ep: "보스 · 2단계 총정리", title: "재고 대혼란 대법정",
+      id: "cboss", ep: "보스 · 2챕터 총정리", title: "재고 대혼란 대법정",
       blurb: "주문 집계는 터지고, 품절 처리는 멈추고, 재고표는 이상하다. 개업 첫날의 재고 시스템.",
       boss: true, hard: true, trust: 3,
       characters: { owner: ["🏪", "분식왕 (원고)"] },
@@ -524,8 +524,8 @@ null + 1          → 언박싱 → NullPointerException`)
       script: [
         { say: "judge", t: "정숙! <b>재고 대혼란 대법정</b>을 개정합니다. 신뢰도는 <b>3</b>, 첫 실수에는 힌트가 없습니다." },
         { say: "owner", t: "개업 첫날이었어요. 첫 주문부터 집계가 <b>멈췄고</b>, 품절 등록은 <b>에러</b>가 났고, 메뉴판 정리는 <b>앱을 멈춰 세웠어요</b>!" },
-        { say: "wit", t: "재고 시스템은 제가 리뷰했어요. 이번엔 1단계 법정에서 배운 대로 꼼꼼히 봤다고요." },
-        { gain: ["code", "run_npe", "spec_get", "run_soldout", "run_board"], t: "법정 기록에 증거 5개가 들어왔다. 2단계 1~4화를 떠올리며 골라야 한다." },
+        { say: "wit", t: "재고 시스템은 제가 리뷰했어요. 이번엔 1챕터 법정에서 배운 대로 꼼꼼히 봤다고요." },
+        { gain: ["code", "run_npe", "spec_get", "run_soldout", "run_board"], t: "법정 기록에 증거 5개가 들어왔다. 2챕터 1~4화를 떠올리며 골라야 한다." },
         { cross: "cb1", title: "증언 ① 처음엔 0이니까", who: "wit",
           lines: [
             { t: "주문이 들어오면 메뉴 이름을 키로 주문 수를 하나씩 올려요.",
@@ -540,7 +540,7 @@ null + 1          → 언박싱 → NullPointerException`)
           hint: "첫 주문으로 집계를 실제로 돌려 본 기록이 있다.",
           win: [
             ["me", "첫 주문을 넣으면 <b>NullPointerException</b>이에요. 없는 키를 물으면 Map은 0이 아니라 <b>null</b>을 주거든요. 실행 결과에도 <code>count.get(\"라면\")</code>이 null로 찍혀 있어요."],
-            ["me", "null에 + 1을 하려고 int로 푸는 순간 터져요. 1단계 4화에서 본 언박싱이에요. <code>merge(menu, 1, Integer::sum)</code>이나 <code>getOrDefault(menu, 0) + 1</code>로 세야 해요."],
+            ["me", "null에 + 1을 하려고 int로 푸는 순간 터져요. 1챕터 4화에서 본 언박싱이에요. <code>merge(menu, 1, Integer::sum)</code>이나 <code>getOrDefault(menu, 0) + 1</code>로 세야 해요."],
             ["witSweat", "으윽…! 집계는 그렇다 쳐도, 품절 목록은 ArrayList예요. 추가는 문제없다고요!"],
             ["judge", "증인, 품절 목록에 대해 증언하세요."]
           ] },
@@ -558,7 +558,7 @@ null + 1          → 언박싱 → NullPointerException`)
           win: [
             ["me", "추가하면 <b>UnsupportedOperationException</b>이에요. Arrays.asList는 배열을 감싼 고정 크기 리스트라 늘어나지 않아요. 3화 그대로예요."],
             ["me", "<code>new ArrayList<>(Arrays.asList(\"김밥\"))</code>로 복사해서 써야 해요."],
-            ["witSweat", "크윽…! 그, 그래도 메뉴판 정리는 1단계에서 배운 대로 꼼꼼히 했어요. for-each로 하나씩 확인해서 지우니까 안전하죠!"],
+            ["witSweat", "크윽…! 그, 그래도 메뉴판 정리는 1챕터에서 배운 대로 꼼꼼히 했어요. for-each로 하나씩 확인해서 지우니까 안전하죠!"],
             ["judge", "…증인, 메뉴판 정리에 대해 증언하세요."]
           ] },
         { cross: "cb3", title: "증언 ③ 하나씩 확인해서 지운다", who: "witSweat",
@@ -604,15 +604,15 @@ for (String m : menuBoard) if (soldOut.contains(m)) menuBoard.remove(m);`, fb: "
           ] },
         { gain: ["run_fixed", "run_merge"], t: "고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다. 집계 {김밥=2, 라면=1}, 메뉴판 [라면, 어묵]." },
         { combine: ["run_npe", "spec_get"], result: "nullkey",
-          t: "판결 전에 하나만 정리하자. ‘처음엔 0’은 왜 틀렸을까?\n첫 주문 실행 결과와 Map.get의 규칙을 조합해 보자.",
+          t: "판결 전에 하나만 정리하자. ‘처음엔 0’은 왜 틀렸을까?\n첫 주문 실행 결과와 맞물리는 증거를 찾아 조합해 보자.",
           wrong: "그 둘로는 정리가 안 된다.",
           got: "없는 키를 물으면 <b>null</b>, null + 1은 <b>언박싱 NPE</b>…!\n새 증거 <b>📌 없는 키는 null</b>을 얻었다." },
         { choice: "judge", t: "마지막 질문입니다. 이번 재판의 네 가지 버그에 공통된 교훈은 무엇입니까?",
           options: [
-            { t: "컬렉션은 위험하니 배열만 쓴다", fb: "배열도 크기가 고정이고 순서·검색을 직접 다뤄야 한다. 컬렉션이 어떻게 동작하는지 알고 쓰는 게 답이다." },
-            { t: "테스트에서 한 번 통과하면 믿어도 된다", fb: "1화의 같은 객체, 2화의 가운데 상품, 4화의 a, b, c처럼 우연히 통과한 테스트가 계속 나왔다." },
-            { t: "컬렉션이 ‘없을 때, 바뀔 때, 순서’를 어떻게 다루는지 알고, 우연히 통과하지 않는 값(첫 원소, 연속, 실제 데이터)으로 테스트한다", ok: true },
-            { t: "예외가 나면 try-catch로 모두 감싼다", fb: "예외를 숨기면 집계·품절·메뉴판이 조용히 틀린 채로 남는다." }
+            { t: "컬렉션은 함정이 많으니, 크기와 순서가 분명한 배열만 쓴다", fb: "배열도 크기가 고정이고 순서·검색을 직접 다뤄야 한다. 컬렉션이 어떻게 동작하는지 알고 쓰는 게 답이다." },
+            { t: "같은 테스트를 여러 번 돌려 매번 통과하면 믿어도 된다", fb: "1화의 같은 객체, 2화의 가운데 상품, 4화의 a, b, c처럼 우연히 통과한 테스트가 계속 나왔다." },
+            { t: "컬렉션의 동작을 알고, 첫 원소·연속·실제 데이터로 테스트한다", ok: true },
+            { t: "예외가 날 만한 곳은 try-catch로 감싸 앱이 멈추지 않게 한다", fb: "예외를 숨기면 집계·품절·메뉴판이 조용히 틀린 채로 남는다." }
           ],
           win: [
             ["judge", "…좋습니다."],

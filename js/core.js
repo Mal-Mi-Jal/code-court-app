@@ -96,11 +96,13 @@
 
   /** 신뢰도가 바닥났을 때 이번 장면을 다시 */
   function retry(c, S) { S.trust = maxTrust(c); S.line = 0; }
+  /** 광고 보상으로 이어하기: 그 자리 그대로, 신뢰도만 n칸 채운다 */
+  function revive(c, S, n = 1) { S.trust = Math.min(maxTrust(c), Math.max(S.trust, 0) + n); }
 
   /** 팩 공통 등장인물 + 사건 등장인물 */
   function characters(pack, c) { return Object.assign({}, pack.commonCharacters || {}, c.characters || {}); }
 
-  const Core = { DEFAULT_TRUST, maxTrust, fresh, restore, step, kind, enter, next, moveLine, present, combine, choose, retry, characters };
+  const Core = { DEFAULT_TRUST, maxTrust, fresh, restore, step, kind, enter, next, moveLine, present, combine, choose, retry, revive, characters };
 
   if (typeof module !== "undefined" && module.exports) module.exports = Core;
   else root.CourtCore = Core;

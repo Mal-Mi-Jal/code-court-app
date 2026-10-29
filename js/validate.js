@@ -32,6 +32,7 @@
 
     const ids = new Set();
     const answerLines = [];   // 증언 정답 줄 위치 (전부 같으면 찍기 쉬워진다)
+    let choiceCount = 0, okLongest = 0;   // 정답 선택지가 가장 긴 경우 세기
     pack.cases.forEach((c, ci) => {
       const P = `cases[${ci}]`;
       if (!isStr(c.id)) err(`${P}.id`, "사건 id가 없습니다");
@@ -121,6 +122,15 @@
             if (!isStr(o.t)) err(`${S}.options[${j}].t`, "선택지 문장이 없습니다");
             if (!o.ok && !isStr(o.fb)) err(`${S}.options[${j}].fb`, "오답 피드백이 없습니다");
           });
+          // 정답만 유독 길면 읽지 않고도 고를 수 있다
+          const okOpt = opts.find(o => o.ok);
+          const wrongLens = opts.filter(o => !o.ok && isStr(o.t)).map(o => o.t.length);
+          if (okOpt && isStr(okOpt.t) && wrongLens.length) {
+            const maxWrong = Math.max(...wrongLens);
+            choiceCount++;
+            if (okOpt.t.length > maxWrong) okLongest++;
+            if (okOpt.t.length > maxWrong * 1.2) warn(`${S}.options`, `정답(${okOpt.t.length}자)이 가장 긴 오답(${maxWrong}자)보다 20% 넘게 깁니다`);
+          }
           checkLines(`${S}.win`, st.win);
         }
         if (k === "verdict" && si !== script.length - 1) err(S, "판결은 마지막 단계여야 합니다");
@@ -145,6 +155,8 @@
       const [line, most] = Object.entries(counts).sort((x, y) => y[1] - x[1])[0];
       if (most / answerLines.length > 0.6) warn("cases", `증언 정답 줄이 ${answerLines.length}개 중 ${most}개가 ${Number(line) + 1}번째입니다 (위치를 섞어 주세요)`);
     }
+
+    if (choiceCount >= 3 && okLongest / choiceCount > 0.5) warn("cases", `선택지 ${choiceCount}개 중 ${okLongest}개에서 정답이 가장 깁니다 (길이로 정답이 보입니다)`);
 
     return { errors, warnings };
   }

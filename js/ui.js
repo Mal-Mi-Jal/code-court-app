@@ -37,13 +37,18 @@
     showMenuChrome("코드 법정", "코드 법정", false);
     $("lead").textContent = "증언에서 모순을 찾아 증거를 제시하세요. 코드가 정말 그렇게 동작하는지, 반례와 실행 결과로 반박하는 재판이에요.";
     const box = $("cases"); box.innerHTML = "";
-    packs.filter(p => DEV || !p.test).forEach(p => {
-      box.appendChild(card({
-        ep: p.test ? "개발용 팩" : (p.language || "코스"), title: p.title, blurb: p.blurb || "",
-        state: p.soon ? ["", "준비 중"] : ["", "열기"], soon: p.soon,
-        on: () => openPack(p)
-      }));
-    });
+    // 챕터는 배우는 순서다. 번호순으로 놓고, 번호와 주제를 배지로 크게 보여 준다
+    packs.filter(p => DEV || !p.test)
+      .sort((a, b) => (a.chapter || 99) - (b.chapter || 99))
+      .forEach(p => {
+        const solved = Object.keys(fetchKey(`court:${p.id}:solved`) || {}).length;
+        box.appendChild(card({
+          ep: p.test ? "개발용 팩" : (p.language || "코스"), title: p.title, blurb: p.blurb || "",
+          chapter: p.chapter ? [p.chapter, p.topic] : null,
+          state: p.soon ? ["", "준비 중"] : solved ? ["going", `${solved}개 해결`] : ["", "열기"], soon: p.soon,
+          on: () => openPack(p)
+        }));
+      });
     if (!box.children.length) box.innerHTML = `<p class="note">아직 열린 코스가 없어요.</p>`;
   }
 
@@ -74,11 +79,12 @@
     });
   }
 
-  function card({ ep, title, blurb, state, soon, boss, on }) {
+  function card({ ep, title, blurb, state, soon, boss, chapter, on }) {
     const b = document.createElement("button");
     b.className = "case" + (soon ? " soon" : "") + (boss ? " boss" : "");
     b.disabled = !!soon;
-    b.innerHTML = `<div class="row"><span class="ep">${esc(ep)}</span><span class="state ${state[0]}">${esc(state[1])}</span></div><h2>${esc(title)}</h2><p>${esc(blurb)}</p>`;
+    const chap = chapter ? `<span class="chap">${esc(chapter[0])}챕터${chapter[1] ? `<small>${esc(chapter[1])}</small>` : ""}</span>` : `<span class="ep">${esc(ep)}</span>`;
+    b.innerHTML = `<div class="row">${chap}<span class="state ${state[0]}">${esc(state[1])}</span></div><h2>${esc(title)}</h2><p>${esc(blurb)}</p>`;
     if (!soon) b.addEventListener("click", on);
     return b;
   }
@@ -235,7 +241,9 @@
   function closeSheet() { $("sheetBg").hidden = true; $("sheet").hidden = true; if (S) { S.fresh = []; save(); } }
   function drawSheet(focusId) {
     const list = $("evList"); list.innerHTML = "";
-    S.have.forEach(id => {
+    // 받은 순서 그대로면 정답 증거가 늘 비슷한 자리에 온다. 사건마다 정해진 순서로 섞는다 (열 때마다 바뀌지는 않게)
+    const rank = id => { let h = 2166136261; for (const ch of C.id + ":" + id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; };
+    S.have.slice().sort((a, b) => rank(a) - rank(b)).forEach(id => {
       const e = C.evidence[id];
       const b = document.createElement("button");
       b.className = "ev" + (picked.includes(id) ? " sel" : "") + (S.fresh.includes(id) ? " new" : "");
@@ -278,8 +286,17 @@
   /* ---------- 결말 ---------- */
   function gameOver() {
     setSpeaker("judge"); setTag("");
-    setText("변호인의 주장은 근거가 부족하군요. 오늘은 여기까지 하겠습니다.\n<b>신뢰도가 바닥났어요.</b> 이번 장면을 처음부터 다시 해 볼까요?");
-    actions(["|", { label: "다시 하기", cls: "primary", on: () => { Core.retry(C, S); save(); render(); } }]);
+    const ads = window.CourtAds && window.CourtAds.available();
+    setText("변호인의 주장은 근거가 부족하군요. 오늘은 여기까지 하겠습니다.\n<b>신뢰도가 바닥났어요.</b> "
+      + (ads ? "광고를 보면 신뢰도 1칸으로 지금 자리에서 이어 갈 수 있어요." : "이번 장면을 처음부터 다시 해 볼까요?"));
+    const retry = { label: "다시 하기", cls: ads ? "" : "primary", on: () => { Core.retry(C, S); save(); render(); } };
+    const revive = { label: "광고 보고 이어하기", cls: "primary", on: async () => {
+      actions([]);
+      const ok = await window.CourtAds.showRewarded();   // 끝까지 봤을 때만 보상
+      if (ok) { Core.revive(C, S, 1); save(); render(); }
+      else gameOver();
+    } };
+    actions(ads ? [retry, "|", revive] : ["|", retry]);
   }
   function renderVerdict() {
     const v = C.verdict;

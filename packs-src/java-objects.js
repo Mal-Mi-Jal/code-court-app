@@ -1,4 +1,4 @@
-// Java 3단계 — 객체·예외 법정 원고
+// Java 3챕터 — 객체·예외 법정 원고
 // 빌드: node tools/build-packs.js → packs/java-objects.json
 // 실행 결과 증거(run)는 tools/verify-run.js가 JDK로 실제로 돌려서 확인한다 (import java.util.* 자동 포함).
 const { ev, runEv, spec, COMMON } = require("./_helpers");
@@ -74,8 +74,8 @@ module.exports = {
   id: "java-objects",
   title: "Java 객체·예외 법정",
   language: "Java",
-  blurb: "3단계. 얕은 복사, finally와 return, 체크 예외와 원인, 제네릭 타입 소거. 조용히 틀리는 코드를 반박해요.",
-  lead: "3단계는 객체와 예외예요. 이번 버그들은 대부분 에러 없이 조용히 틀립니다. 증인이 ‘에러가 안 났으니 괜찮다’고 하면 의심해 보세요. 실행 결과는 모두 JDK 21로 실제로 돌린 값이에요.",
+  blurb: "얕은 복사, finally와 return, 체크 예외와 원인, 제네릭 타입 소거. 조용히 틀리는 코드를 반박해요.",
+  lead: "3챕터는 객체와 예외예요. 조합할 증거는 이제 직접 찾아야 해요. 이번 버그들은 대부분 에러 없이 조용히 틀립니다. 증인이 ‘에러가 안 났으니 괜찮다’고 하면 의심해 보세요. 실행 결과는 모두 JDK 21로 실제로 돌린 값이에요.",
   commonCharacters: COMMON,
   cases: [
     /* ---------------- 1화 ---------------- */
@@ -129,7 +129,7 @@ menu.get(0) == backup.get(0)  → true   (내용물은 같은 객체)`)
             { t: "원본에 케이크를 추가해 봤더니, 백업은 그대로 2개였어요.",
               press: [["wit", "3 / 2. 실행 결과로 봤어요."], ["me", "(그건 맞다. 리스트라는 상자는 새로 만들어졌다. 그런데 테스트한 건 ‘개수’뿐이다.)"]] },
             { t: "그러니 할인으로 가격을 바꿔도, 백업에는 원래 가격이 그대로 남아 있어요.",
-              press: [["wit", "완전히 따로 있는 복사본이니까요."], ["me", "(개수가 따로 논다고 가격도 따로 놀까? 할인한 뒤 백업을 찍어 본 기록이 있다.)"]] }
+              press: [["wit", "완전히 따로 있는 복사본이니까요."], ["me", "(개수가 따로 논다고 가격도 따로 놀까?)"]] }
           ],
           answer: { line: 2, ev: "run_price" },
           alt: { line: 2, ev: "spec_copy", say: [["me", "new ArrayList<>(menu)는 원소 객체를 새로 만들지 않아요. 참조만 담아요."], ["wit", "어려운 말은 됐고요, 제 테스트에선 백업이 그대로였다니까요!"], ["me", "(할인한 뒤 백업을 출력한 결과를 보여 주자.)"]] },
@@ -141,8 +141,8 @@ menu.get(0) == backup.get(0)  → true   (내용물은 같은 객체)`)
             ["judge", "변호인, 백업이 왜 같이 바뀌었는지 밝혀 보세요."]
           ] },
         { combine: ["spec_copy", "run_same"], result: "shallow",
-          t: "리스트는 따로인데 가격은 같이 바뀌었다.\nnew ArrayList의 규칙과 같은 객체인지 확인한 결과를 조합해 보자.",
-          wrong: "그 둘로는 이유가 안 나온다. 복사가 무엇을 새로 만드는지와, 두 리스트의 원소가 같은 객체인지를 나란히 놓아 보자.",
+          t: "리스트는 따로인데 가격은 같이 바뀌었다. 왜일까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 복사가 무엇을 새로 만드는지부터 생각해 보자.",
           got: "상자는 <b>새것</b>, 안의 Menu는 <b>같은 객체</b>…!\n새 증거 <b>📌 상자만 새것, 내용물은 같은 것</b>을 얻었다." },
         { cross: "c1b", title: "증언 ② clone이면 통째로 복제된다", who: "witSweat",
           lines: [
@@ -163,9 +163,9 @@ menu.get(0) == backup.get(0)  → true   (내용물은 같은 객체)`)
           ] },
         { choice: "judge", t: "할인 전 가격을 확실히 지키려면 어떻게 백업해야 합니까?",
           options: [
-            { t: "List.copyOf(menu)로 백업한다", fb: "List.copyOf도 리스트만 새로(바꿀 수 없게) 만든다. 안의 Menu는 같은 객체라서 가격은 같이 바뀐다." },
-            { t: "백업을 두 번 만들어 둔다", fb: "얕은 복사를 몇 번 해도 모두 같은 Menu 객체를 가리킨다." },
-            { t: "Menu를 하나씩 new Menu(m.name, m.price)로 새로 만들어 담는다 (깊은 복사). 또는 Menu를 바꿀 수 없는 record로 만들고, 할인은 새 객체로 만든다", ok: true },
+            { t: "List.copyOf(menu)로 바꿀 수 없는 백업을 만든다", fb: "List.copyOf도 리스트만 새로(바꿀 수 없게) 만든다. 안의 Menu는 같은 객체라서 가격은 같이 바뀐다." },
+            { t: "new ArrayList 백업을 두 개 만들어 하나가 망가져도 대비한다", fb: "얕은 복사를 몇 번 해도 모두 같은 Menu 객체를 가리킨다." },
+            { t: "Menu도 하나씩 new Menu(...)로 새로 만들어 담는다", ok: true },
             { t: "menu = backup 대신 menu.addAll(backup)으로 되돌린다", fb: "같은 객체를 다시 담을 뿐이다. 가격은 이미 바뀌어 있다." }
           ],
           win: [
@@ -235,7 +235,7 @@ finally 안에서 return하면 그 return이 이긴다:
             { t: "정상 금액은 3000원으로 테스트했고, 결제 3000원이 잘 나왔어요.",
               press: [["wit", "결제 시도 기록도 잘 찍혔고요."], ["me", "(정상 금액은 문제없다. 문제는 잘못된 금액이다.)"]] },
             { t: "0원이면 IllegalArgumentException이 던져지니까, 호출한 쪽 catch에서 관리자 알림이 가요.",
-              press: [["wit", "throw를 분명히 써 놨잖아요."], ["me", "(throw는 있다. 그 예외가 catch까지 도착할까? 0원으로 돌려 본 기록이 있다.)"]] },
+              press: [["wit", "throw를 분명히 써 놨잖아요."], ["me", "(그 예외가 정말 catch까지 도착할까?)"]] },
             { t: "알림이 안 온 건 알림 서버 문제예요.",
               press: [["wit", "요즘 알림 서버가 느리더라고요."], ["me", "(서버 탓을 하기 전에, 예외가 정말 나왔는지부터 보자.)"]] }
           ],
@@ -249,8 +249,8 @@ finally 안에서 return하면 그 return이 이긴다:
             ["judge", "변호인, 예외가 사라진 이유를 밝혀 보세요."]
           ] },
         { combine: ["run_swallow", "spec_finally"], result: "swallow",
-          t: "throw를 했는데 예외가 catch에 오지 않았다.\n0원 결제 결과와 finally의 규칙을 조합해 보자.",
-          wrong: "그 둘로는 이유가 안 나온다. 예외가 사라진 실행 결과와, finally 안에서 return하면 어떻게 되는지를 나란히 놓아 보자.",
+          t: "throw를 했는데 예외가 catch에 오지 않았다. 예외는 어디로 갔을까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 예외가 사라진 실행 결과에서 출발해 보자.",
           got: "finally의 <b>return</b>이 던지던 <b>예외를 버렸다</b>…!\n새 증거 <b>📌 finally가 삼킨 예외</b>를 얻었다." },
         { cross: "c2b", title: "증언 ② finally는 예외 때만 돈다", who: "witSweat",
           lines: [
@@ -259,7 +259,7 @@ finally 안에서 return하면 그 return이 이긴다:
             { t: "그럼 finally를 통째로 지우고, 기록은 catch 안에서만 남길게요.",
               press: [["wit", "기록은 실패했을 때만 있으면 되죠."], ["me", "(정상 결제도 기록이 필요하다면? 그건 다음 증언에서 드러난다.)"]] },
             { t: "어차피 finally는 예외가 났을 때만 실행되는 블록이라, 정상 결제엔 원래 필요 없었어요.",
-              press: [["wit", "try가 return하면 거기서 메서드가 끝나잖아요."], ["me", "(try에서 return하면 finally를 건너뛸까? 돌려 본 기록이 있다.)"]] }
+              press: [["wit", "try가 return하면 거기서 메서드가 끝나잖아요."], ["me", "(정말 건너뛸까?)"]] }
           ],
           answer: { line: 2, ev: "run_always" },
           alt: { line: 2, ev: "run_ok", say: [["me", "정상 금액 3000원 테스트에서도 ‘결제 시도 기록’이 찍혔어요."], ["witSweat", "그, 그건 결제가 오래 걸려서 그런 거겠죠!"], ["me", "(try에서 바로 return해도 finally가 도는 걸 보여 주자.)"]] },
@@ -272,7 +272,7 @@ finally 안에서 return하면 그 return이 이긴다:
         { choice: "judge", t: "결제 함수는 어떻게 고쳐야 합니까?",
           options: [
             { t: "finally의 return result를 return \"성공\"으로 바꾼다", fb: "finally에서 return하는 한 예외는 계속 버려진다. 0원 결제가 ‘성공’이 될 뿐이다." },
-            { t: "finally 안에서 return하지 않는다. finally에는 기록·정리만 두고, 결과는 try에서 return한다", ok: true },
+            { t: "finally에서는 기록만 하고, return은 try에서 한다", ok: true },
             { t: "catch (Exception e) {}를 추가해서 모든 예외를 잡는다", fb: "예외를 잡아서 아무것도 안 하면 알림은 여전히 가지 않는다." },
             { t: "finally를 지우고 기록은 catch 안에서만 남긴다", fb: "예외는 살아나지만, 정상 결제의 기록이 사라진다. finally는 그대로 두고 return만 빼면 된다." }
           ],
@@ -349,7 +349,7 @@ while (c != Object.class) {
         { cross: "c3a", title: "증언 ① 컴파일러가 조용했다", who: "wit",
           lines: [
             { t: "Integer.parseInt는 throws가 붙어 있지 않고 컴파일러도 catch하라고 안 해요. 그러니 예외가 나지 않는 메서드예요.",
-              press: [["wit", "위험한 메서드면 컴파일러가 알려 주잖아요. 파일 읽기처럼요."], ["me", "(파일 읽기는 체크 예외다. 모든 예외를 컴파일러가 알려 줄까? 일단 ‘두개’로 돌려 본 기록이 있다.)"]] },
+              press: [["wit", "위험한 메서드면 컴파일러가 알려 주잖아요. 파일 읽기처럼요."], ["me", "(컴파일러가 모든 예외를 알려 줄까?)"]] },
             { t: "수량은 화면에서 숫자만 입력하게 막아 뒀어요.",
               press: [["wit", "입력칸이 number 타입이에요."], ["me", "(화면을 거치지 않고 API로 바로 보내면? 서버는 화면을 믿으면 안 된다.)"]] },
             { t: "서버가 죽은 건 그날 주문이 몰려서예요.",
@@ -364,15 +364,15 @@ while (c != Object.class) {
             ["judge", "변호인, 컴파일러가 조용했던 이유를 밝혀 보세요."]
           ] },
         { combine: ["run_chain", "spec_checked"], result: "unchecked",
-          t: "예외가 났는데 컴파일러는 조용했다.\nNumberFormatException의 부모 클래스와 예외 종류 규칙을 조합해 보자.",
-          wrong: "그 둘로는 이유가 안 나온다. 이 예외가 어느 집안인지와, 컴파일러가 어떤 예외를 검사하는지를 나란히 놓아 보자.",
+          t: "예외가 났는데 컴파일러는 조용했다. 왜일까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 이 예외가 어느 집안인지부터 생각해 보자.",
           got: "부모를 따라가면 <b>RuntimeException</b>, 컴파일러가 <b>검사하지 않는</b> 예외…!\n새 증거 <b>📌 컴파일러가 묻지 않는 예외</b>를 얻었다." },
         { cross: "c3b", title: "증언 ② 메시지에 다 들어 있다", who: "witSweat",
           lines: [
             { t: "좋아요, 그래서 지금은 NumberFormatException을 잡아서 RuntimeException으로 감싸 다시 던져요.",
               press: [["wit", "위에서 한 번에 처리하려고요."], ["me", "(감싸서 던지는 것 자체는 흔한 방법이다. 어떻게 감쌌는지가 문제다.)"]] },
             { t: "new RuntimeException(\"수량 오류: \" + e.getMessage())로 만들었으니, 원래 예외도 원인으로 함께 실려 가요.",
-              press: [["wit", "메시지에 원래 내용을 붙였잖아요."], ["me", "(메시지 글자를 붙인 것과 예외를 ‘원인’으로 붙인 건 같을까? 원인을 찍어 본 기록이 있다.)"]] },
+              press: [["wit", "메시지에 원래 내용을 붙였잖아요."], ["me", "(글자를 붙인 것과 ‘원인’으로 붙인 건 같을까?)"]] },
             { t: "그러니 로그만 보면 어디서 왜 터졌는지 다 알 수 있어요.",
               press: [["wit", "로그는 꼼꼼히 남기는 편이에요."], ["me", "(원고는 로그만으로 알 수 없었다고 했다.)"]] }
           ],
@@ -386,10 +386,10 @@ while (c != Object.class) {
           ] },
         { choice: "judge", t: "수량 입력은 어떻게 처리해야 합니까?",
           options: [
-            { t: "catch (Exception e) {}로 감싸서 서버가 죽지 않게만 한다", fb: "서버는 살지만 잘못된 주문이 수량 0이나 이전 값으로 조용히 들어간다." },
+            { t: "catch (Exception e) {}로 감싸 서버가 죽지 않게 하고 다음 주문으로 넘어간다", fb: "서버는 살지만 잘못된 주문이 수량 0이나 이전 값으로 조용히 들어간다." },
             { t: "다시 던질 때 new RuntimeException(\"수량 오류: \" + e)처럼 예외를 문자열로 붙인다", fb: "e의 toString 글자가 붙을 뿐, 원인(cause)과 원래 스택 트레이스는 여전히 없다." },
-            { t: "parseInt에 throws를 붙여 달라고 JDK에 요청한다", fb: "NumberFormatException은 언체크 예외라 throws로 강제할 수 없다. 언체크 예외는 우리가 직접 대비해야 한다." },
-            { t: "잘못된 입력은 잡아서 ‘수량은 숫자로’ 같은 검증 오류로 돌려주고, 다시 던질 땐 new RuntimeException(\"수량 오류\", e)처럼 원인을 함께 넘긴다", ok: true }
+            { t: "parseInt를 throws NumberFormatException이 붙은 메서드로 감싸 catch를 강제한다", fb: "언체크 예외는 throws에 적어도 컴파일러가 catch를 강제하지 않는다. 언체크 예외는 우리가 직접 대비해야 한다." },
+            { t: "입력을 검증하고, 감쌀 땐 new RuntimeException(\"수량 오류\", e)로 넘긴다", ok: true }
           ],
           win: [
             ["judge", "컴파일러가 묻지 않는 예외는 사람이 대비하고, 감쌀 땐 원인까지."],
@@ -455,7 +455,7 @@ scores.get(0)을 int로 → 그제야 (Integer) 형변환 → ClassCastException
         { cross: "c4a", title: "증언 ① 꺼낼 때 막힌다", who: "wit",
           lines: [
             { t: "잘못된 타입이면 load에서 형변환할 때 바로 에러가 나요. 꺼내기에 성공했다면 정수 목록이 확실해요.",
-              press: [["wit", "<code>(List<T>)</code>로 형변환하잖아요. 형변환이 검사죠."], ["me", "(형변환이 정말 안의 원소까지 볼까? 꺼내서 써 본 기록이 있다.)"]] },
+              press: [["wit", "<code>(List<T>)</code>로 형변환하잖아요. 형변환이 검사죠."], ["me", "(형변환이 안의 원소까지 볼까?)"]] },
             { t: "load에 붙은 @SuppressWarnings는 시끄러운 경고를 끈 것뿐이에요.",
               press: [["wit", "노란 줄이 거슬려서요."], ["me", "(그 경고가 무엇을 알려 주려던 건지는 나중에 보자.)"]] },
             { t: "그러니 평균 계산 쪽 코드를 고쳐야 해요.",
@@ -471,8 +471,8 @@ scores.get(0)을 int로 → 그제야 (Integer) 형변환 → ClassCastException
             ["judge", "변호인, 형변환이 왜 막지 못했는지 밝혀 보세요."]
           ] },
         { combine: ["run_late", "spec_erasure"], result: "erased",
-          t: "꺼내기는 성공했고, 쓸 때 터졌다.\n그 실행 결과와 제네릭의 규칙을 조합해 보자.",
-          wrong: "그 둘로는 이유가 안 나온다. 꺼내기가 통과한 결과와, 실행 중에 제네릭 타입이 어떻게 되는지를 나란히 놓아 보자.",
+          t: "꺼내기는 성공했고, 쓸 때 터졌다. 형변환은 왜 막지 못했을까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 꺼내기가 통과한 실행 결과에서 출발해 보자.",
           got: "실행 중엔 <b>Integer가 지워져</b> 있어서 형변환이 <b>검사를 못 했다</b>…!\n새 증거 <b>📌 검사하지 않는 형변환</b>을 얻었다." },
         { cross: "c4b", title: "증언 ② JVM이 막아 준다", who: "witSweat",
           lines: [
@@ -481,7 +481,7 @@ scores.get(0)을 int로 → 그제야 (Integer) 형변환 → ClassCastException
             { t: "@SuppressWarnings만 지우면 컴파일러가 알아서 막아 줄 거예요.",
               press: [["wit", "경고를 다시 켜면 되죠."], ["me", "(경고는 ‘여기서 검사 못 한다’는 알림이다. 켜도 실행 중 검사가 생기진 않는다.)"]] },
             { t: "근본적으로는 JVM이 실행 중에도 <code>List<String></code>과 <code>List<Integer></code>를 다른 클래스로 구분하니까, 이런 섞임은 드물어요.",
-              press: [["wit", "타입이 다르면 클래스도 다르겠죠."], ["me", "(실행 중에 두 리스트의 클래스를 비교해 본 기록이 있다.)"]] }
+              press: [["wit", "타입이 다르면 클래스도 다르겠죠."], ["me", "(정말 다른 클래스일까?)"]] }
           ],
           answer: { line: 2, ev: "run_same" },
           alt: { line: 2, ev: "erased", say: [["me", "실행 중에는 <code><Integer></code> 정보가 지워져 있어요."], ["witSweat", "그래도 클래스는 다르다니까요! <code>List<String></code>, <code>List<Integer></code>!"], ["me", "(두 리스트의 클래스를 비교한 결과를 보여 주자.)"]] },
@@ -494,8 +494,8 @@ scores.get(0)을 int로 → 그제야 (Integer) 형변환 → ClassCastException
         { choice: "judge", t: "캐시에서 점수를 안전하게 꺼내려면 어떻게 해야 합니까?",
           options: [
             { t: "if (list instanceof List<Integer>)로 먼저 확인한다", fb: "실행 중엔 <Integer>가 지워져 있어서 이 검사는 할 수 없다. 컴파일 에러가 난다." },
-            { t: "@SuppressWarnings만 지운다", fb: "경고가 다시 보일 뿐, 실행 중 검사는 여전히 없다." },
-            { t: "타입을 Class<T>로 함께 받아 원소마다 type.cast로 검사한다 (또는 처음부터 타입이 정해진 캐시를 쓴다)", ok: true },
+            { t: "@SuppressWarnings를 지워 컴파일러 검사를 다시 켠다", fb: "경고가 다시 보일 뿐, 실행 중 검사는 여전히 없다." },
+            { t: "Class<T>를 함께 받아 원소마다 type.cast로 검사한다", ok: true },
             { t: "평균 계산을 try-catch로 감싸 ClassCastException이 나면 0점으로 친다", fb: "잘못된 데이터가 0점으로 조용히 바뀐다. 문제는 넣은 쪽에 있다." }
           ],
           win: [
@@ -519,7 +519,7 @@ scores.get(0)을 int로 → 그제야 (Integer) 형변환 → ClassCastException
 
     /* ---------------- 보스 ---------------- */
     {
-      id: "cboss", ep: "보스 · 3단계 총정리", title: "월말 정산 대법정",
+      id: "cboss", ep: "보스 · 3챕터 총정리", title: "월말 정산 대법정",
       blurb: "정산은 ‘완료’라는데 돈은 안 빠졌고, 백업은 같이 망가졌고, 로그엔 원인이 없다.",
       boss: true, hard: true, trust: 3,
       characters: { cfo: ["💼", "재무팀장 (원고)"] },
@@ -557,7 +557,7 @@ System.out.println(a);`, "정산 완료\n철수=200", ACCOUNT + "\n\n" + SETTLE)
     System.out.println(w.getMessage());
     System.out.println(w.getCause());
 }`, "정산 실패\nnull"),
-        spec_three: spec("3단계에서 본 규칙", "1~3화 판결 요약.", `얕은 복사: new ArrayList<>(list)는 상자만 새것, 안의 객체는 같다 (1화)
+        spec_three: spec("3챕터에서 본 규칙", "1~3화 판결 요약.", `얕은 복사: new ArrayList<>(list)는 상자만 새것, 안의 객체는 같다 (1화)
 finally 안의 return은 던지던 예외를 버린다 (2화)
 다시 던질 땐 원인을 넘긴다: new RuntimeException(메시지, e) (3화)`),
         run_fixed: runEv("고친 정산 실행 결과", "깊은 복사 백업, return 없는 finally, 원인을 넘기는 감싸기로 고쳐서 돌려 본 결과.", `List<Account> accounts = new ArrayList<>(List.of(new Account("민지", 3000), new Account("철수", 200)));
@@ -581,7 +581,7 @@ new RuntimeException("정산 실패") → 원인 null`)
         { say: "judge", t: "정숙! <b>월말 정산 대법정</b>을 개정합니다. 신뢰도는 <b>3</b>, 첫 실수에는 힌트가 없습니다." },
         { say: "cfo", t: "월말 정산 결과가 전부 <b>‘정산 완료’</b>였어요. 그런데 수수료가 안 빠진 계좌가 있고, 되돌리려던 백업은 <b>같이 망가졌고</b>, 10월 거래 파일 오류는 <b>원인을 알 수가 없어요</b>!" },
         { say: "wit", t: "정산 배치는 제가 리뷰했어요. 이번엔 백업도 만들고, finally도 넣고, 예외도 감쌌다고요." },
-        { gain: ["code", "run_backup", "run_settle", "run_wrap", "spec_three"], t: "법정 기록에 증거 5개가 들어왔다. 3단계 1~3화를 떠올리며 골라야 한다." },
+        { gain: ["code", "run_backup", "run_settle", "run_wrap", "spec_three"], t: "법정 기록에 증거 5개가 들어왔다. 3챕터 1~3화를 떠올리며 골라야 한다." },
         { cross: "cb1", title: "증언 ① 백업은 안전하다", who: "wit",
           lines: [
             { t: "정산 전에 계좌 목록을 백업해요. 문제가 생기면 백업으로 되돌리려고요.",
@@ -605,7 +605,7 @@ new RuntimeException("정산 실패") → 원인 null`)
             { t: "finally에는 결과를 확실히 돌려주려고 return \"정산 완료\"를 넣었어요.",
               press: [["wit", "결과가 꼭 있어야 배치가 안 멈추니까요."], ["me", "(배치는 안 멈춘다. 예외도 같이 멈춰 버린다.)"]] },
             { t: "그래서 ‘정산 완료’가 나온 계좌는 모두 수수료가 빠진 거예요.",
-              press: [["wit", "완료라고 나왔잖아요."], ["me", "(‘완료’라는 글자와 실제 잔액을 같이 찍어 본 기록이 있다.)"]] }
+              press: [["wit", "완료라고 나왔잖아요."], ["me", "(‘완료’라는 글자가 실제 잔액을 말해 줄까?)"]] }
           ],
           answer: { line: 2, ev: "run_settle" },
           hint: "잔액이 모자란 계좌로 정산해 본 기록이 있다. 2화를 떠올려 보자.",
@@ -620,7 +620,7 @@ new RuntimeException("정산 실패") → 원인 null`)
             { t: "IOException은 체크 예외라 throws를 계속 붙이기 귀찮아서, RuntimeException으로 감싸요.",
               press: [["wit", "배치 전체에 throws IOException을 붙이긴 싫잖아요."], ["me", "(감싸는 것 자체는 괜찮다. 3화에서 본 건 ‘어떻게’ 감싸느냐였다.)"]] },
             { t: "감싼 예외에는 원래 IOException이 원인으로 자동으로 따라가요.",
-              press: [["wit", "catch 안에서 만들었으니까요."], ["me", "(catch 안에서 만들었다고 원인이 붙을까? 원인을 찍어 본 기록이 있다.)"]] },
+              press: [["wit", "catch 안에서 만들었으니까요."], ["me", "(catch 안에서 만들면 원인이 저절로 붙을까?)"]] },
             { t: "그러니 로그를 보면 어떤 파일이 왜 실패했는지 다 알 수 있어요.",
               press: [["wit", "로그는 거짓말 안 해요."], ["me", "(원고는 원인을 알 수 없었다고 했다.)"]] }
           ],
@@ -658,15 +658,15 @@ throw new RuntimeException("정산 실패: " + e.getMessage());`, fb: "메시지
           ] },
         { gain: ["run_fixed"], t: "고친 정산을 실제로 돌려 본 결과가 법정 기록에 들어왔다. 철수 계좌는 알림이 찍혔고, 백업은 정산 전 금액 그대로다." },
         { combine: ["run_settle", "run_backup"], result: "silent",
-          t: "판결 전에 하나만 정리하자. 이번 버그들의 공통점은 무엇일까?\n‘정산 완료’가 나온 결과와 백업이 같이 바뀐 결과를 조합해 보자.",
+          t: "판결 전에 하나만 정리하자. 이번 버그들의 공통점은 무엇일까?\n에러 없이 조용히 틀린 실행 결과 두 개를 골라 조합해 보자.",
           wrong: "그 둘로는 정리가 안 된다.",
           got: "에러 없이 <b>조용히</b> 틀렸다…!\n새 증거 <b>📌 조용한 실패 세 개</b>를 얻었다." },
         { choice: "judge", t: "마지막 질문입니다. 이번 재판의 버그들에 공통된 교훈은 무엇입니까?",
           options: [
             { t: "예외는 위험하니 전부 잡아서 배치가 멈추지 않게 한다", fb: "바로 그게 이번 사건이다. 멈추지 않는 대신 틀린 채로 ‘완료’가 됐다." },
-            { t: "‘에러 없음’과 ‘완료’ 표시를 성공으로 믿지 않는다. 실패는 숨기지 말고 원인과 함께 드러내고, 복사는 무엇이 공유되는지 실제 값으로 확인한다", ok: true },
-            { t: "체크 예외는 귀찮으니 쓰지 않는다", fb: "예외 종류가 문제가 아니라, 감쌀 때 원인을 버린 게 문제였다." },
-            { t: "백업은 필요 없다. 정산을 다시 돌리면 된다", fb: "수수료가 두 번 빠지는 계좌가 생긴다. 백업은 필요하고, 깊은 복사로 만들면 된다." }
+            { t: "‘완료’ 표시를 믿지 말고, 실패는 원인과 함께 드러내 실제 값으로 확인한다", ok: true },
+            { t: "체크 예외는 throws가 번거로우니 전부 RuntimeException으로 바꾼다", fb: "예외 종류가 문제가 아니라, 감쌀 때 원인을 버린 게 문제였다." },
+            { t: "백업은 필요 없다. 문제가 생기면 정산 배치를 한 번 더 돌린다", fb: "수수료가 두 번 빠지는 계좌가 생긴다. 백업은 필요하고, 깊은 복사로 만들면 된다." }
           ],
           win: [
             ["judge", "…좋습니다."],
