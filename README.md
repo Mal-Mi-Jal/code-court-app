@@ -18,6 +18,7 @@ packs/index.json          코스 목록
 packs-src/_helpers.js     원고 공용 도우미 (ev / runEv / spec). _로 시작하는 원고는 팩으로 빌드하지 않는다
 packs/java-basics.json    Java 1단계 기초 법정 (사건 4개 + 보스)
 packs/java-collections.json  Java 2단계 컬렉션 법정 (사건 4개 + 보스)
+packs/java-objects.json      Java 3단계 객체·예외 법정 (사건 4개 + 보스)
 packs/_test/              엔진 회귀 테스트용 팩 (#dev에서만 보임)
 tools/build-packs.js      원고 → JSON (--check: 빌드 결과가 커밋된 파일과 같은지)
 tools/validate.js         node tools/validate.js <팩>

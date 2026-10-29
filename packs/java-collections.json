@@ -102,6 +102,19 @@
             "classes": "record Point(int x, int y) {}"
           }
         },
+        "run_record": {
+          "ic": "▶️",
+          "k": "실행 결과",
+          "name": "record가 만들어 주는 것",
+          "desc": "record Point(int x, int y) {} 한 줄만 쓰고, 안을 비워 둔 채 써 본 결과. 컴파일러가 private final 필드, 생성자, x()·y() 접근자, 모든 필드 기준의 equals·hashCode·toString을 자동으로 만든다. setter는 없다 (값을 바꿀 수 없다).",
+          "code": "record Point(int x, int y) {}\n\n// 생성자: 자동\nPoint a = new Point(3, 5);\nPoint b = new Point(3, 5);\n// 접근자: getX()가 아니라 x()\nSystem.out.println(a.x() + \", \" + a.y());\n// toString: 자동\nSystem.out.println(a);\n// equals, hashCode: x, y 기준\nSystem.out.println(a.equals(b));\nSystem.out.println(a.hashCode() == b.hashCode());\n\n// 실행 결과\n// 3, 5\n// Point[x=3, y=5]\n// true\n// true",
+          "run": {
+            "lang": "java",
+            "snippet": "// 생성자: 자동\nPoint a = new Point(3, 5);\nPoint b = new Point(3, 5);\n// 접근자: getX()가 아니라 x()\nSystem.out.println(a.x() + \", \" + a.y());\n// toString: 자동\nSystem.out.println(a);\n// equals, hashCode: x, y 기준\nSystem.out.println(a.equals(b));\nSystem.out.println(a.hashCode() == b.hashCode());",
+            "expected": "3, 5\nPoint[x=3, y=5]\ntrue\ntrue",
+            "classes": "record Point(int x, int y) {}"
+          }
+        },
         "twostep": {
           "ic": "📌",
           "k": "추리",
@@ -347,9 +360,10 @@
         },
         {
           "gain": [
-            "run_fix"
+            "run_fix",
+            "run_record"
           ],
-          "t": "record로 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다."
+          "t": "record로 고친 코드를 실제로 돌려 본 결과와, record가 안에 무엇을 만들어 주는지 확인한 결과가 법정 기록에 들어왔다."
         },
         {
           "verdict": true
@@ -362,7 +376,8 @@
           "HashMap: hashCode로 칸 → 그 칸에서 equals",
           "저장한 객체를 그대로 다시 넣는 테스트는 우연히 통과한다",
           "equals만 재정의해도, hashCode만 재정의해도 null",
-          "정답: 둘을 같은 기준으로 함께 / <code>record Point(int x, int y)</code>"
+          "정답: 둘을 같은 기준으로 함께 / <code>record Point(int x, int y)</code>",
+          "record는 필드·생성자·<code>x()</code> 접근자·equals·hashCode·toString을 자동으로 만든다 (setter 없음)"
         ]
       }
     },

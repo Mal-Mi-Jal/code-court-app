@@ -55,6 +55,16 @@ System.out.println(shops.get(new Point(3, 5)));`, "null", POINT_EQ),
         run_fix: runEv("record로 만든 결과", "Point를 record로 바꿔서 찾아 본 결과. record는 equals와 hashCode를 필드 기준으로 함께 만들어 준다.", `Map<Point, String> shops = new HashMap<>();
 shops.put(new Point(3, 5), "분식집");
 System.out.println(shops.get(new Point(3, 5)));`, "분식집", `record Point(int x, int y) {}`),
+        run_record: runEv("record가 만들어 주는 것", "record Point(int x, int y) {} 한 줄만 쓰고, 안을 비워 둔 채 써 본 결과. 컴파일러가 private final 필드, 생성자, x()·y() 접근자, 모든 필드 기준의 equals·hashCode·toString을 자동으로 만든다. setter는 없다 (값을 바꿀 수 없다).", `// 생성자: 자동
+Point a = new Point(3, 5);
+Point b = new Point(3, 5);
+// 접근자: getX()가 아니라 x()
+System.out.println(a.x() + ", " + a.y());
+// toString: 자동
+System.out.println(a);
+// equals, hashCode: x, y 기준
+System.out.println(a.equals(b));
+System.out.println(a.hashCode() == b.hashCode());`, "3, 5\nPoint[x=3, y=5]\ntrue\ntrue", `record Point(int x, int y) {}`),
         twostep: ev("📌", "추리", "두 단계 검색", "조합 결과: HashMap은 equals부터 보지 않는다. 먼저 hashCode로 칸을 고르고, 그 칸 안에서만 equals로 비교한다.\nequals만 재정의하면 새 Point(3, 5)의 hashCode는 여전히 객체마다 달라서, 엉뚱한 칸을 찾아가고 equals는 불려 보지도 못한다.", `new Point(3, 5).hashCode()  → 저장한 Point와 다른 값 → 다른 칸
 → equals를 재정의해도 비교할 기회가 없다 → null`)
       },
@@ -113,7 +123,7 @@ System.out.println(shops.get(new Point(3, 5)));`, "분식집", `record Point(int
             ["judge", "equals와 hashCode는 한 쌍이군요."],
             ["me", "네. 손으로 쓰기 번거로우면 <code>record Point(int x, int y)</code>로 만들면 둘 다 필드 기준으로 만들어져요. 실제로 돌려 보면 분식집이 나와요."]
           ] },
-        { gain: ["run_fix"], t: "record로 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { gain: ["run_fix", "run_record"], t: "record로 고친 코드를 실제로 돌려 본 결과와, record가 안에 무엇을 만들어 주는지 확인한 결과가 법정 기록에 들어왔다." },
         { verdict: true }
       ],
       verdict: {
@@ -123,7 +133,8 @@ System.out.println(shops.get(new Point(3, 5)));`, "분식집", `record Point(int
           "HashMap: hashCode로 칸 → 그 칸에서 equals",
           "저장한 객체를 그대로 다시 넣는 테스트는 우연히 통과한다",
           "equals만 재정의해도, hashCode만 재정의해도 null",
-          "정답: 둘을 같은 기준으로 함께 / <code>record Point(int x, int y)</code>"
+          "정답: 둘을 같은 기준으로 함께 / <code>record Point(int x, int y)</code>",
+          "record는 필드·생성자·<code>x()</code> 접근자·equals·hashCode·toString을 자동으로 만든다 (setter 없음)"
         ]
       }
     },
