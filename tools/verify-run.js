@@ -15,7 +15,7 @@ const { spawnSync } = require("child_process");
 function runJava(snippet, classes) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "court-verify-"));
   // 사건 코드는 짧게 보여 주려고 import를 생략하므로, 자주 쓰는 패키지는 여기서 넣어 준다
-  const src = `import java.util.*;\nimport java.util.function.*;\n\npublic class Main {\n${classes || ""}\n  public static void main(String[] args) throws Exception {\n${snippet}\n  }\n}\n`;
+  const src = `import java.util.*;\nimport java.util.function.*;\nimport java.util.stream.*;\nimport java.math.*;\nimport java.time.*;\nimport java.time.format.*;\nimport java.time.temporal.*;\nimport java.util.concurrent.*;\nimport java.util.concurrent.atomic.*;\n\npublic class Main {\n${classes || ""}\n  public static void main(String[] args) throws Exception {\n${snippet}\n  }\n}\n`;
   const file = path.join(dir, "Main.java");
   fs.writeFileSync(file, src, "utf8");
   const r = spawnSync("java", ["-Dstdout.encoding=UTF-8", "-Dfile.encoding=UTF-8", file], { encoding: "utf8", timeout: 30000 });

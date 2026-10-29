@@ -1,0 +1,607 @@
+// Java 4챕터 — 스트림·람다 법정 원고
+// 빌드: node tools/build-packs.js → packs/java-streams.json
+// 실행 결과 증거(run)는 tools/verify-run.js가 JDK로 실제로 돌려서 확인한다 (java.util.*, java.util.stream.* 자동 포함).
+// 힌트: 3챕터처럼 조합 안내는 목표만, 추궁 대사는 짧은 의심만 남긴다.
+const { ev, runEv, spec, COMMON } = require("./_helpers");
+
+const SEND = `static void send(String name) {
+    System.out.println("쿠폰 발송: " + name);
+}`;
+const SEND_RET = `static String send(String name) {
+    System.out.println("쿠폰 발송: " + name);
+    return name;
+}`;
+const ORDER = `record Order(String member, Integer amount) {}`;
+const GUEST = `static String createGuest() {
+    System.out.println("손님 계정 생성 (DB 저장)");
+    return "손님";
+}`;
+const BOSS = `record Order(String member, int amount) {}
+
+static String sendReceipt(Order o) {
+    System.out.println("영수증 발송: " + o.member());
+    return o.member();
+}`;
+
+module.exports = {
+  format: "code-court/v1",
+  id: "java-streams",
+  title: "Java 스트림 법정",
+  language: "Java",
+  blurb: "스트림의 지연 실행, Collectors.toMap의 중복 키, Optional의 get과 orElse, 일회용 스트림. 짧고 멋진 코드 속 함정을 반박해요.",
+  lead: "4챕터는 스트림과 람다예요. 코드가 짧고 멋져 보일수록 증인은 자신만만합니다. 그 한 줄이 언제, 몇 번 실행되는지 따져 보세요. 조합할 증거는 직접 찾아야 해요. 실행 결과는 모두 JDK 21로 실제로 돌린 값이에요.",
+  commonCharacters: COMMON,
+  cases: [
+    /* ---------------- 1화 ---------------- */
+    {
+      id: "c1", ep: "1화 · 지연 실행", title: "보내지 않은 쿠폰 사건",
+      blurb: "회원 모두에게 쿠폰을 보냈다는데, 받은 사람이 한 명도 없다.",
+      characters: { mkt: ["📣", "마케팅팀 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "쿠폰 발송 코드", "회원 모두에게 쿠폰을 보내는 부분. 배포된 그대로다.", `${SEND_RET}
+
+members.stream().map(m -> send(m));   // 회원 모두에게 쿠폰`),
+        run_test: runEv("단정해의 테스트", "발송이 됐는지 보려고 결과를 toList()로 받아 몇 명인지 찍어 본 테스트.", `List<String> members = List.of("민지", "철수", "영희");
+List<String> done = members.stream().map(m -> send(m)).toList();
+System.out.println(done.size() + "명");`, "쿠폰 발송: 민지\n쿠폰 발송: 철수\n쿠폰 발송: 영희\n3명", SEND_RET),
+        run_none: runEv("배포된 코드 실행 결과", "배포된 코드 그대로 돌리고, 끝났다는 표시만 찍어 본 결과.", `List<String> members = List.of("민지", "철수", "영희");
+members.stream().map(m -> send(m));
+System.out.println("발송 끝");`, "발송 끝", SEND_RET),
+        spec_lazy: spec("스트림의 지연 실행", "java.util.stream 패키지 문서의 규칙 요약.", `중간 연산(map, filter, peek, sorted)은 바로 실행되지 않는다.
+최종 연산(forEach, toList, collect, count …)이 불릴 때 한꺼번에 실행된다.
+최종 연산이 없으면 아무 일도 일어나지 않는다.
+count()처럼 원소를 보지 않고도 답을 아는 최종 연산은,
+개수를 바꾸지 않는 중간 연산(map, peek)을 건너뛸 수 있다 (JDK 9부터).`),
+        run_count: runEv("count()를 붙인 결과", "끝에 count()를 붙여서, 몇 명에게 보냈는지 세어 본 결과.", `List<String> members = List.of("민지", "철수", "영희");
+long n = members.stream().map(m -> send(m)).count();
+System.out.println("count = " + n);`, "count = 3", SEND_RET),
+        run_fix: runEv("forEach로 보낸 결과", "값을 바꾸는 map 대신, 하나씩 보내는 forEach로 고쳐 돌린 결과.", `List<String> members = List.of("민지", "철수", "영희");
+members.forEach(m -> send(m));`, "쿠폰 발송: 민지\n쿠폰 발송: 철수\n쿠폰 발송: 영희", SEND),
+        lazy: ev("📌", "추리", "방아쇠는 최종 연산", "조합 결과: 스트림의 map은 ‘이렇게 바꿀 거다’라는 계획만 세운다. 실제로 도는 건 toList() 같은 최종 연산이 불릴 때다.\n단정해의 테스트는 결과를 확인하려고 toList()를 붙였기 때문에 발송이 됐다. 배포된 코드에는 최종 연산이 없어서 계획만 세우고 끝났다.", `테스트: map → toList()  → 최종 연산이 있음 → 3명 발송
+배포:   map            → 최종 연산 없음  → 0명 발송`)
+      },
+      script: [
+        { say: "judge", t: "‘보내지 않은 쿠폰 사건’의 재판을 시작합니다." },
+        { say: "mkt", t: "어제 회원 모두에게 할인 쿠폰을 보냈어요. 그런데 고객센터에 <b>받은 사람이 하나도 없다</b>는 문의만 쏟아져요!" },
+        { say: "wit", t: "발송 코드는 스트림 한 줄로 깔끔하게 썼어요. 테스트에서도 세 명 모두 발송됐다고요." },
+        { gain: ["code", "run_test", "run_none", "spec_lazy", "run_count"], t: "법정 기록에 증거 5개가 들어왔다." },
+        { cross: "c1a", title: "증언 ① 세 명 모두 받았다", who: "wit",
+          lines: [
+            { t: "회원 목록을 스트림으로 돌면서, map 안에서 send를 불러요.",
+              press: [["wit", "한 줄이라 읽기도 좋잖아요."], ["me", "(map은 값을 바꾸는 연산인데…)"]] },
+            { t: "제 테스트에서는 ‘쿠폰 발송’이 세 번 찍혔어요.",
+              press: [["wit", "3명이라고도 나왔어요."], ["me", "(테스트 코드는 끝에 무엇을 붙였더라.)"]] },
+            { t: "그러니 배포된 코드도 회원 모두에게 쿠폰을 보냈어요.",
+              press: [["wit", "같은 map이니까요."], ["me", "(정말 같은 코드일까?)"]] }
+          ],
+          answer: { line: 2, ev: "run_none" },
+          alt: { line: 2, ev: "spec_lazy", say: [["me", "스트림의 중간 연산은 최종 연산이 없으면 실행되지 않아요."], ["wit", "규칙은 됐고요, 제 테스트에선 보내졌다니까요!"], ["me", "(배포된 코드 그대로 돌린 결과를 보여 주자.)"]] },
+          hint: "배포된 코드 그대로 돌려 본 결과가 있다.",
+          win: [
+            ["me", "배포된 코드 그대로 돌리면 <b>‘발송 끝’만</b> 찍혀요. 쿠폰은 한 장도 안 나갔어요."],
+            ["witSweat", "네?! 똑같은 map인데요? 제 테스트에선 분명히 세 번 찍혔다고요!"],
+            ["judge", "변호인, 테스트에서만 발송된 이유를 밝혀 보세요."]
+          ] },
+        { combine: ["run_test", "spec_lazy"], result: "lazy",
+          t: "같은 map인데 테스트에선 보내지고 배포에선 안 보내졌다. 무엇이 달랐을까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 테스트 코드에는 있고 배포 코드에는 없는 것부터 찾아보자.",
+          got: "테스트에만 <b>toList()</b>, 스트림은 <b>최종 연산이 있어야</b> 돈다…!\n새 증거 <b>📌 방아쇠는 최종 연산</b>을 얻었다." },
+        { cross: "c1b", title: "증언 ② count()면 해결", who: "witSweat",
+          lines: [
+            { t: "그럼 끝에 count()만 붙이면 되죠. 최종 연산이니까 send가 실행되고, 몇 명에게 보냈는지도 세 줘요.",
+              press: [["wit", "일석이조잖아요."], ["me", "(count()가 원소를 하나하나 볼까?)"]] },
+            { t: "어차피 스트림이 for문보다 짧으니까 바꿀 이유도 없고요.",
+              press: [["wit", "요즘은 다 스트림이에요."], ["me", "(짧은 건 맞다. 지금 문제는 길이가 아니다.)"]] },
+            { t: "다음 주 쿠폰도 이 방식으로 보낼게요.",
+              press: [["wit", "재사용하면 되죠."], ["me", "(그 전에 확인할 게 있다.)"]] }
+          ],
+          answer: { line: 0, ev: "run_count" },
+          alt: { line: 0, ev: "lazy", say: [["me", "최종 연산이 있어야 돈다는 건 맞아요. 그런데 최종 연산마다 하는 일이 달라요."], ["witSweat", "최종 연산은 최종 연산이죠! count()도 최종 연산이잖아요!"], ["me", "(count()를 붙여 돌린 결과를 보여 주자.)"]] },
+          hint: "count()를 붙여 돌린 결과가 있다. ‘쿠폰 발송’이 찍혔는지 보자.",
+          win: [
+            ["me", "count()를 붙이면 <b>count = 3</b>은 나오는데, ‘쿠폰 발송’은 <b>한 줄도 안 찍혀요</b>."],
+            ["me", "리스트 크기를 이미 아는데 map은 개수를 바꾸지 않으니, count()는 map을 <b>건너뛰고</b> 3을 바로 돌려줘요. JDK 9부터 이렇게 동작해요."],
+            ["witSweat", "으아악─!!"]
+          ] },
+        { choice: "judge", t: "쿠폰은 어떻게 보내야 합니까?",
+          options: [
+            { t: "members.stream().map(m -> send(m)).count()로 바꾼다", fb: "count()는 개수를 바꾸지 않는 map을 건너뛴다. 실행 결과도 0명 발송이었다." },
+            { t: "map 대신 peek 안에서 send를 부르고 count()를 붙인다", fb: "peek도 중간 연산이다. count()가 건너뛸 수 있는 건 마찬가지다." },
+            { t: "for문이나 members.forEach(m -> send(m))로 보낸다", ok: true },
+            { t: "중간에 filter(m -> true)를 넣어 count()가 건너뛰지 못하게 한다", fb: "실행은 되겠지만 JDK의 최적화를 피하는 요령에 기대는 코드다. 보내는 일은 forEach로 분명히 쓴다." }
+          ],
+          win: [
+            ["judge", "값을 바꾸는 일은 map, 무언가를 하는 일은 forEach."],
+            ["me", "네. map은 결과를 받을 때 쓰고, 쿠폰 발송처럼 바깥에 영향을 주는 일은 forEach나 for문으로 써요. 고쳐 돌리면 세 명 모두 발송돼요."]
+          ] },
+        { gain: ["run_fix"], t: "forEach로 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 쿠폰이 나가지 않은 원인이 <b>최종 연산 없는 스트림</b>이라고 판단합니다. 쿠폰은 계획만 세워지고 출발하지 않았습니다!",
+        quote: "스트림의 중간 연산(map, filter, peek)은 최종 연산이 불릴 때까지 실행되지 않는다. 최종 연산이 없으면 아무 일도 없고, count()는 개수를 바꾸지 않는 map을 건너뛸 수도 있다. 바깥에 영향을 주는 일(발송, 저장)은 map에 숨기지 말고 forEach나 for문으로 쓴다.",
+        clues: [
+          "중간 연산은 최종 연산이 있어야 실행된다 (지연 실행)",
+          "테스트의 <code>toList()</code>가 우연히 방아쇠가 됐다",
+          "<code>count()</code>는 크기를 알면 <code>map</code>을 건너뛴다 (JDK 9+)",
+          "정답: 발송 같은 일은 <code>forEach</code> / for문"
+        ]
+      }
+    },
+
+    /* ---------------- 2화 ---------------- */
+    {
+      id: "c2", ep: "2화 · Collectors.toMap", title: "두 번 주문한 손님 사건",
+      blurb: "회원별 주문 합계 화면이 오늘따라 통째로 안 뜬다.",
+      characters: { cafe: ["🥐", "빵집 사장님 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "회원별 합계 코드", "오늘 주문을 회원별로 모아 합계를 보여 주는 부분.", `${ORDER}
+
+Map<String, Integer> total = orders.stream()
+    .collect(Collectors.toMap(o -> o.member(), o -> o.amount()));`),
+        run_test: runEv("단정해의 테스트", "회원마다 주문이 하나씩인 목록으로 돌려 본 결과.", `List<Order> orders = List.of(new Order("민지", 12000), new Order("철수", 8000));
+System.out.println(orders.stream().collect(Collectors.toMap(o -> o.member(), o -> o.amount())));`, "{철수=8000, 민지=12000}", ORDER),
+        run_dup: runEv("오늘 주문으로 돌린 결과", "민지가 두 번 주문한 오늘 목록으로 돌려 본 결과.", `List<Order> orders = List.of(new Order("민지", 12000), new Order("철수", 8000), new Order("민지", 5000));
+try {
+    orders.stream().collect(Collectors.toMap(o -> o.member(), o -> o.amount()));
+} catch (Exception e) {
+    System.out.println(e.getClass().getSimpleName());
+    System.out.println(e.getMessage());
+}`, "IllegalStateException\nDuplicate key 민지 (attempted merging values 12000 and 5000)", ORDER),
+        spec_tomap: spec("Collectors.toMap", "Collectors 문서의 규칙 요약.", `toMap(키, 값): 같은 키가 두 번 나오면 IllegalStateException (Duplicate key).
+  HashMap.put처럼 덮어쓰지 않는다.
+toMap(키, 값, 합치는 함수): 같은 키의 값을 그 함수로 합친다. 예: Integer::sum
+값이 null이면 NullPointerException이 난다 (안에서 Map.merge를 쓰기 때문).`),
+        run_put: runEv("HashMap.put으로 담았을 때", "같은 오늘 목록을 for문에서 HashMap.put으로 담아 본 결과.", `List<Order> orders = List.of(new Order("민지", 12000), new Order("철수", 8000), new Order("민지", 5000));
+Map<String, Integer> m = new HashMap<>();
+for (Order o : orders) m.put(o.member(), o.amount());
+System.out.println(m);`, "{철수=8000, 민지=5000}", ORDER),
+        run_null: runEv("금액이 아직 없는 주문", "합치는 함수(Integer::sum)를 넣은 뒤, 금액이 아직 정해지지 않은(null) 예약 주문을 섞어 돌린 결과.", `List<Order> orders = new ArrayList<>(List.of(new Order("민지", 12000), new Order("민지", 5000)));
+orders.add(new Order("영희", null));   // 예약 주문: 금액 미정
+try {
+    orders.stream().collect(Collectors.toMap(o -> o.member(), o -> o.amount(), Integer::sum));
+} catch (Exception e) {
+    System.out.println(e.getClass().getSimpleName());
+}`, "NullPointerException", ORDER),
+        run_fix: runEv("groupingBy로 합친 결과", "회원별로 묶어 금액을 더하고(null은 0), 이름순으로 담아 본 결과.", `List<Order> orders = new ArrayList<>(List.of(new Order("민지", 12000), new Order("철수", 8000), new Order("민지", 5000)));
+orders.add(new Order("영희", null));
+Map<String, Integer> total = orders.stream().collect(Collectors.groupingBy(
+    o -> o.member(), TreeMap::new,
+    Collectors.summingInt(o -> o.amount() == null ? 0 : o.amount())));
+System.out.println(total);`, "{민지=17000, 영희=0, 철수=8000}", ORDER),
+        nomerge: ev("📌", "추리", "멈추는 toMap, 덮는 put", "조합 결과: HashMap.put은 같은 키가 오면 말없이 덮어쓰지만(민지=5000, 앞 주문 12000원이 사라짐), Collectors.toMap은 같은 키를 만나면 ‘어떻게 합칠지 모르겠다’며 멈춘다.\n같은 회원이 두 번 주문하는 건 흔한 일이다. 합치는 방법은 코드가 직접 정해 줘야 한다.", `put   → 같은 키: 말없이 덮어씀 (앞 값 사라짐)
+toMap → 같은 키: IllegalStateException (합칠 방법을 달라)`)
+      },
+      script: [
+        { say: "judge", t: "‘두 번 주문한 손님 사건’의 재판을 시작합니다." },
+        { say: "cafe", t: "어제까진 회원별 주문 합계가 잘 떴어요. 그런데 오늘은 화면이 <b>통째로 안 떠요</b>. 단골 민지 씨가 아침저녁 두 번 오신 날이에요." },
+        { say: "wit", t: "합계 코드는 toMap 한 줄이에요. 테스트에서 잘 나왔다고요." },
+        { gain: ["code", "run_test", "run_dup", "spec_tomap", "run_put", "run_null"], t: "법정 기록에 증거 6개가 들어왔다." },
+        { cross: "c2a", title: "증언 ① 덮어쓰니까 괜찮다", who: "wit",
+          lines: [
+            { t: "주문을 회원 이름으로 모아서 Map으로 만들어요.",
+              press: [["wit", "이름이 키, 금액이 값이죠."], ["me", "(이름이 키면, 같은 이름이 또 나오면?)"]] },
+            { t: "같은 회원 주문이 또 오면 HashMap.put처럼 나중 금액으로 덮어써요. 그래서 중복이 있어도 화면은 떠요.",
+              press: [["wit", "Map이니까 당연하죠."], ["me", "(toMap이 정말 put처럼 행동할까?)"]] },
+            { t: "화면이 안 뜨는 건 빵집 와이파이 문제예요.",
+              press: [["wit", "빵집이 좀 오래됐잖아요."], ["me", "(와이파이 탓은 마지막에 하자.)"]] }
+          ],
+          answer: { line: 1, ev: "run_dup" },
+          alt: { line: 1, ev: "spec_tomap", say: [["me", "toMap은 같은 키가 두 번 나오면 덮어쓰지 않고 예외를 던져요."], ["wit", "문서는 문서고요, Map은 원래 덮어쓴다니까요!"], ["me", "(오늘 주문으로 실제로 돌린 결과를 보여 주자.)"]] },
+          hint: "민지가 두 번 주문한 오늘 목록으로 돌려 본 결과가 있다.",
+          win: [
+            ["me", "오늘 주문으로 돌리면 <b>IllegalStateException: Duplicate key 민지</b>예요. 덮어쓰지 않고 그 자리에서 멈춰요. 화면이 안 뜬 이유예요."],
+            ["witSweat", "네?! HashMap.put은 덮어쓰잖아요! 왜 toMap만 멈춰요?!"],
+            ["judge", "변호인, 둘이 왜 다르게 행동하는지 밝혀 보세요."]
+          ] },
+        { combine: ["run_put", "spec_tomap"], result: "nomerge",
+          t: "put은 덮어쓰는데 toMap은 멈췄다. 둘은 무엇이 다를까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. put으로 담았을 때 무엇이 남았는지부터 보자.",
+          got: "put은 <b>말없이 덮고</b>, toMap은 <b>합칠 방법을 달라며 멈춘다</b>…!\n새 증거 <b>📌 멈추는 toMap, 덮는 put</b>을 얻었다." },
+        { cross: "c2b", title: "증언 ② 합치는 함수면 끝", who: "witSweat",
+          lines: [
+            { t: "좋아요, 합칠 방법을 넣으면 되는군요.",
+              press: [["wit", "세 번째 인자 말이죠."], ["me", "(그건 맞다.)"]] },
+            { t: "toMap에 Integer::sum을 넣었으니, 민지 씨는 12000 + 5000 = 17000원이 돼요.",
+              press: [["wit", "덧셈이니까요."], ["me", "(두 주문이 모두 금액이 있다면 그렇다.)"]] },
+            { t: "이제 어떤 주문이 와도 괜찮아요. 금액이 아직 안 정해진 예약 주문도 그냥 0원처럼 담기니까요.",
+              press: [["wit", "없는 건 0이죠."], ["me", "(null이 저절로 0이 될까?)"]] }
+          ],
+          answer: { line: 2, ev: "run_null" },
+          alt: { line: 2, ev: "spec_tomap", say: [["me", "toMap은 값이 null이면 담지 못해요."], ["witSweat", "에이, 그 정도는 알아서 0으로 해 주겠죠!"], ["me", "(예약 주문을 섞어 돌린 결과를 보여 주자.)"]] },
+          hint: "금액이 아직 없는 예약 주문을 섞어 돌린 결과가 있다.",
+          win: [
+            ["me", "예약 주문이 섞이면 <b>NullPointerException</b>이에요. null은 0이 되지 않고, toMap은 null 값을 담지 못해요."],
+            ["me", "합치는 방법뿐 아니라 <b>값이 없을 때</b>도 코드가 정해 줘야 해요."],
+            ["witSweat", "으아악─!!"]
+          ] },
+        { choice: "judge", t: "회원별 합계는 어떻게 내야 합니까?",
+          options: [
+            { t: "toMap 대신 for문에서 HashMap.put으로 하나씩 담는다", fb: "예외는 안 나지만 민지의 아침 주문 12000원이 조용히 사라진다." },
+            { t: "groupingBy로 묶고 summingInt로 더한다 (null은 0)", ok: true },
+            { t: "toMap 전체를 try-catch로 감싸 예외가 나면 빈 Map을 보여 준다", fb: "화면은 뜨지만 합계가 텅 빈다. 문제를 숨길 뿐이다." },
+            { t: "금액이 null인 예약 주문은 filter로 빼고 toMap을 쓴다", fb: "null은 피했지만 중복 회원에서 다시 Duplicate key가 나고, 예약 손님이 목록에서 사라진다." }
+          ],
+          win: [
+            ["judge", "같은 키는 합치고, 없는 값은 정해 두고."],
+            ["me", "네. 고쳐 돌리면 <b>{민지=17000, 영희=0, 철수=8000}</b>이에요. 두 번 온 손님도, 금액 미정 손님도 모두 들어가요."]
+          ] },
+        { gain: ["run_fix"], t: "groupingBy로 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 합계 화면이 멈춘 원인이 <b>같은 키를 만난 Collectors.toMap</b>이라고 판단합니다. 와이파이는 무죄!",
+        quote: "Collectors.toMap(키, 값)은 같은 키가 두 번 나오면 덮어쓰지 않고 IllegalStateException(Duplicate key)을 던지고, 값이 null이면 NullPointerException을 던진다. 테스트 데이터에 중복이 없으면 통과한다. 합칠 함수(세 번째 인자)를 주거나 groupingBy로 묶고, null을 어떻게 다룰지 정한다.",
+        clues: [
+          "<code>toMap</code>: 같은 키 → IllegalStateException (put처럼 덮지 않음)",
+          "<code>put</code>은 말없이 덮어써서 앞 값이 사라진다",
+          "<code>toMap</code>은 null 값 → NullPointerException",
+          "정답: <code>groupingBy</code> + <code>summingInt</code>, 또는 <code>toMap(k, v, Integer::sum)</code>"
+        ]
+      }
+    },
+
+    /* ---------------- 3화 ---------------- */
+    {
+      id: "c3", ep: "3화 · Optional", title: "매일 생기는 손님 계정 사건",
+      blurb: "없는 회원을 찾으면 앱이 죽고, 고쳤더니 이번엔 손님 계정이 하루 수천 개씩 생긴다.",
+      characters: { dba: ["🗄️", "DB 관리자 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "회원 찾기 코드", "아이디로 회원을 찾는 부분.", `String name = users.stream()
+    .filter(u -> u.equals(id))
+    .findFirst()
+    .get();`),
+        run_found: runEv("단정해의 테스트", "있는 회원 ‘민지’로 찾아 본 결과.", `List<String> users = List.of("민지", "철수");
+System.out.println(users.stream().filter(u -> u.equals("민지")).findFirst().get());`, "민지"),
+        run_get: runEv("없는 회원으로 찾은 결과", "가입하지 않은 ‘영희’로 찾아 본 결과.", `List<String> users = List.of("민지", "철수");
+try {
+    users.stream().filter(u -> u.equals("영희")).findFirst().get();
+} catch (Exception e) {
+    System.out.println(e.getClass().getSimpleName());
+    System.out.println(e.getMessage());
+}`, "NoSuchElementException\nNo value present"),
+        spec_optional: spec("Optional", "Optional 문서와 Java 언어 규칙 요약.", `Optional은 ‘값이 있을 수도, 없을 수도 있다’는 상자다.
+get(): 값이 없으면 NoSuchElementException (같은 동작의 이름이 orElseThrow())
+orElse(x): 메서드 인자 x는 호출 전에 항상 먼저 계산된다. 값이 없을 때만 x를 쓴다.
+orElseGet(() -> x): 값이 없을 때만 함수를 실행한다.`),
+        run_orelse: runEv("orElse로 고친 뒤", "orElse(createGuest())로 고친 코드를, 있는 회원 ‘민지’로 찾아 본 결과.", `List<String> users = List.of("민지", "철수");
+String name = users.stream().filter(u -> u.equals("민지")).findFirst().orElse(createGuest());
+System.out.println("결과: " + name);`, "손님 계정 생성 (DB 저장)\n결과: 민지", GUEST),
+        run_fix: runEv("orElseGet으로 고친 결과", "orElseGet으로 고친 코드를 있는 회원과 없는 회원으로 각각 찾아 본 결과.", `List<String> users = List.of("민지", "철수");
+System.out.println("결과: " + users.stream().filter(u -> u.equals("민지")).findFirst().orElseGet(() -> createGuest()));
+System.out.println("결과: " + users.stream().filter(u -> u.equals("영희")).findFirst().orElseGet(() -> createGuest()));`, "결과: 민지\n손님 계정 생성 (DB 저장)\n결과: 손님", GUEST),
+        box: ev("📌", "추리", "열어 보지 않은 상자", "조합 결과: findFirst()가 돌려주는 Optional은 ‘비어 있을 수 있다’는 표시가 붙은 상자다. 안전함은 상자를 열기 전에 비었는지 확인할 때 생긴다.\nget()은 확인 없이 바로 꺼내는 방법이라, 빈 상자면 NoSuchElementException이 난다. Optional을 썼다고 저절로 안전해지지 않는다.", `findFirst() → Optional (비어 있을 수 있음)
+.get()      → 확인 없이 꺼냄 → 비었으면 NoSuchElementException`)
+      },
+      script: [
+        { say: "judge", t: "‘매일 생기는 손님 계정 사건’의 재판을 시작합니다." },
+        { say: "dba", t: "처음엔 없는 아이디로 로그인하면 앱이 죽었어요. 고쳤다길래 안심했더니, 이번엔 <b>손님 계정이 하루에 수천 개씩</b> DB에 쌓여요!" },
+        { say: "wit", t: "회원 찾기는 Optional을 돌려주는 findFirst를 썼어요. Optional은 null 걱정 없는 안전한 방법이잖아요." },
+        { gain: ["code", "run_found", "run_get", "spec_optional", "run_orelse"], t: "법정 기록에 증거 5개가 들어왔다." },
+        { cross: "c3a", title: "증언 ① Optional이라 안전하다", who: "wit",
+          lines: [
+            { t: "findFirst는 Optional을 돌려주니까, 없는 아이디여도 앱이 죽을 일은 없어요.",
+              press: [["wit", "null 대신 Optional. 요즘 방식이죠."], ["me", "(Optional을 받은 다음 무엇을 했지?)"]] },
+            { t: "있는 회원 민지로 테스트했더니 이름이 잘 나왔어요.",
+              press: [["wit", "깔끔하게 ‘민지’."], ["me", "(있는 회원은 그렇다.)"]] },
+            { t: "앱이 죽었던 건 서버 점검 시간이랑 겹쳐서예요.",
+              press: [["wit", "그날 새벽에 점검이 있었거든요."], ["me", "(점검 탓은 나중에.)"]] }
+          ],
+          answer: { line: 0, ev: "run_get" },
+          alt: { line: 0, ev: "spec_optional", say: [["me", "Optional의 get()은 값이 없으면 예외를 던져요."], ["wit", "그래도 Optional이니까 안전하다니까요!"], ["me", "(없는 아이디로 실제로 돌린 결과를 보여 주자.)"]] },
+          hint: "가입하지 않은 아이디로 찾아 본 결과가 있다.",
+          win: [
+            ["me", "없는 아이디로 찾으면 <b>NoSuchElementException: No value present</b>예요. 앱이 죽은 이유예요."],
+            ["witSweat", "네?! Optional인데 예외가 난다고요? 그럼 Optional은 왜 쓰는 거예요?!"],
+            ["judge", "변호인, Optional을 쓰고도 죽은 이유를 밝혀 보세요."]
+          ] },
+        { combine: ["run_get", "spec_optional"], result: "box",
+          t: "Optional을 썼는데 앱이 죽었다. 무엇이 빠졌을까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 앱이 죽은 실행 결과에서 출발해 보자.",
+          got: "상자를 <b>열어 보지도 않고</b> get()으로 꺼냈다…!\n새 증거 <b>📌 열어 보지 않은 상자</b>를 얻었다." },
+        { cross: "c3b", title: "증언 ② 없을 때만 만든다", who: "witSweat",
+          lines: [
+            { t: "그래서 get() 대신 orElse(createGuest())로 바꿨어요. 이제 없는 아이디면 손님으로 들어가요.",
+              press: [["wit", "앱은 더 이상 안 죽어요."], ["me", "(안 죽는 건 맞다.)"]] },
+            { t: "createGuest()는 회원이 없을 때만 불리니까, 손님 계정이 쓸데없이 생길 일은 없어요.",
+              press: [["wit", "orElse니까요. ‘없으면’이잖아요."], ["me", "(언제 불리는지는 이름이 정하지 않는다.)"]] },
+            { t: "손님 계정이 많은 건 그만큼 손님이 많아서예요.",
+              press: [["wit", "장사가 잘된다는 거죠."], ["me", "(정말 손님일까?)"]] }
+          ],
+          answer: { line: 1, ev: "run_orelse" },
+          alt: { line: 1, ev: "spec_optional", say: [["me", "메서드 인자는 호출 전에 먼저 계산돼요. orElse 안의 createGuest()도요."], ["witSweat", "그래도 없을 때만 쓴다잖아요!"], ["me", "(있는 회원으로 돌린 결과를 보여 주자.)"]] },
+          hint: "orElse로 고친 뒤 있는 회원으로 찾아 본 결과가 있다.",
+          win: [
+            ["me", "있는 회원 민지로 찾아도 <b>‘손님 계정 생성 (DB 저장)’</b>이 찍혀요. 결과는 민지인데 손님 계정은 따로 하나 생겼어요."],
+            ["me", "orElse의 인자는 Optional이 비었는지 보기 <b>전에</b> 먼저 계산돼요. 로그인할 때마다 손님 계정이 하나씩 쌓인 거예요."],
+            ["witSweat", "으아악─!!"]
+          ] },
+        { choice: "judge", t: "회원 찾기는 어떻게 고쳐야 합니까?",
+          options: [
+            { t: "get() 앞에 isPresent()로 확인하고, 없으면 null을 돌려준다", fb: "Optional을 쓴 이유가 사라진다. null이 다시 호출한 쪽으로 퍼진다." },
+            { t: "orElse(createGuest())를 그대로 두고, 손님 계정을 매일 밤 지운다", fb: "버그는 그대로 두고 청소만 늘린다. 계정 번호도 계속 낭비된다." },
+            { t: "get()을 try-catch로 감싸 예외가 나면 손님으로 처리한다", fb: "예외를 흐름 제어로 쓰는 셈이고, 다른 버그로 난 예외까지 손님으로 덮는다." },
+            { t: "없으면 orElseThrow, 기본값이 필요하면 orElseGet을 쓴다", ok: true }
+          ],
+          win: [
+            ["judge", "열어 보고 꺼내고, 필요할 때만 만든다."],
+            ["me", "네. orElseGet으로 고치면 있는 회원일 땐 <b>결과: 민지</b>만 찍히고, 없는 회원일 때만 손님 계정이 생겨요."]
+          ] },
+        { gain: ["run_fix"], t: "orElseGet으로 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 앱이 죽은 원인이 <b>빈 Optional의 get()</b>이고, 손님 계정이 쌓인 원인이 <b>미리 계산되는 orElse의 인자</b>라고 판단합니다. 장사가 잘된 건 아니었습니다!",
+        quote: "Optional은 비어 있을 수 있다는 표시일 뿐, get()으로 바로 꺼내면 빈 경우 NoSuchElementException이 난다. orElse(x)의 x는 값이 있어도 먼저 계산되므로, DB 저장 같은 일을 넣으면 매번 실행된다. 없을 때 오류는 orElseThrow, 없을 때만 만들 기본값은 orElseGet을 쓴다.",
+        clues: [
+          "<code>Optional.get()</code> → 비었으면 NoSuchElementException",
+          "Optional을 썼다고 저절로 안전하지 않다",
+          "<code>orElse(함수())</code>는 값이 있어도 함수를 먼저 실행한다",
+          "정답: <code>orElseThrow</code> / <code>orElseGet(() -> …)</code>"
+        ]
+      }
+    },
+
+    /* ---------------- 4화 ---------------- */
+    {
+      id: "c4", ep: "4화 · 일회용 스트림", title: "정렬되지 않은 랭킹 사건",
+      blurb: "시험 통계 화면은 예외로 멈추고, 랭킹은 점수 순서가 아니다.",
+      characters: { teacher: ["🏫", "담임 선생님 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "시험 통계 코드", "응시자 수, 평균, 랭킹을 보여 주는 부분.", `Stream<Integer> scoreStream = scores.stream();   // 한 번 만들어 두고
+long count = scoreStream.count();                     // 응시자 수
+double avg = scoreStream.mapToInt(x -> x).average().orElse(0);   // 평균
+
+scores.stream().sorted(Comparator.reverseOrder());    // 랭킹 정렬
+System.out.println(scores);`),
+        run_test: runEv("단정해의 테스트", "응시자 수와 평균을 각각 따로 scores.stream()으로 구해 본 결과.", `List<Integer> scores = List.of(70, 95, 80);
+long count = scores.stream().count();
+double avg = scores.stream().mapToInt(x -> x).average().orElse(0);
+System.out.printf("%d명, 평균 %.1f%n", count, avg);`, "3명, 평균 81.7"),
+        run_reuse: runEv("배포된 코드 실행 결과", "스트림을 변수에 담아 두고 응시자 수와 평균을 차례로 구해 본 결과.", `List<Integer> scores = List.of(70, 95, 80);
+Stream<Integer> scoreStream = scores.stream();
+System.out.println(scoreStream.count() + "명");
+try {
+    scoreStream.mapToInt(x -> x).average();
+} catch (Exception e) {
+    System.out.println(e.getClass().getSimpleName());
+    System.out.println(e.getMessage());
+}`, "3명\nIllegalStateException\nstream has already been operated upon or closed"),
+        spec_stream: spec("스트림은 흐름이다", "java.util.stream 패키지 문서의 규칙 요약.", `스트림은 데이터를 담는 그릇이 아니라, 원본에서 한 번 흘러가는 계산이다.
+최종 연산을 한 번 하면 닫히고, 다시 쓰면 IllegalStateException.
+스트림 연산은 원본 컬렉션을 바꾸지 않는다. 결과는 toList()나 collect로 새로 받는다.
+(toList()가 돌려주는 리스트는 바꿀 수 없다)`),
+        run_sorted: runEv("랭킹 정렬 실행 결과", "scores.stream().sorted(…)를 부른 뒤 scores를 출력해 본 결과.", `List<Integer> scores = new ArrayList<>(List.of(70, 95, 80));
+scores.stream().sorted(Comparator.reverseOrder());
+System.out.println(scores);`, "[70, 95, 80]"),
+        run_fix: runEv("새로 받은 랭킹", "정렬 결과를 toList()로 새로 받아, 원본과 함께 출력해 본 결과.", `List<Integer> scores = new ArrayList<>(List.of(70, 95, 80));
+List<Integer> ranking = scores.stream().sorted(Comparator.reverseOrder()).toList();
+System.out.println(ranking + " / 원본 " + scores);`, "[95, 80, 70] / 원본 [70, 95, 80]"),
+        oneshot: ev("📌", "추리", "한 번 흐르는 물", "조합 결과: 스트림은 원본에서 한 번 흘러가는 계산이다. count()로 한 번 다 흘려보낸 스트림은 닫혀서, 평균을 내려고 다시 쓰면 IllegalStateException이 난다.\n단정해의 테스트는 매번 scores.stream()으로 새 흐름을 만들었기 때문에 통과했다. 그리고 흐름은 원본(scores)을 바꾸지 않는다.", `scores.stream()를 매번 새로 → 통과 (테스트)
+같은 스트림을 두 번         → IllegalStateException (배포)`)
+      },
+      script: [
+        { say: "judge", t: "‘정렬되지 않은 랭킹 사건’의 재판을 시작합니다." },
+        { say: "teacher", t: "시험 통계 화면이 <b>예외로 멈췄어요</b>. 겨우 랭킹만 띄웠더니, 이번엔 1등이 맨 위에 있지도 않아요!" },
+        { say: "wit", t: "스트림을 한 번 만들어 두고 돌려썼어요. 효율적이잖아요. 테스트에서도 평균이 잘 나왔고요." },
+        { gain: ["code", "run_test", "run_reuse", "spec_stream", "run_sorted"], t: "법정 기록에 증거 5개가 들어왔다." },
+        { cross: "c4a", title: "증언 ① 한 번 만들어 돌려쓴다", who: "wit",
+          lines: [
+            { t: "응시자 수와 평균은 같은 점수에서 나오잖아요.",
+              press: [["wit", "같은 데이터니까요."], ["me", "(그건 맞다.)"]] },
+            { t: "제 테스트에서는 3명, 평균 81.7이 잘 나왔어요.",
+              press: [["wit", "소수점까지 정확하게요."], ["me", "(테스트에선 스트림을 어떻게 만들었더라.)"]] },
+            { t: "그래서 스트림을 변수에 한 번 담아 두고, 리스트처럼 여러 번 꺼내 써요. 매번 만드는 것보다 효율적이죠.",
+              press: [["wit", "재사용은 좋은 습관이에요."], ["me", "(스트림이 리스트처럼 남아 있을까?)"]] }
+          ],
+          answer: { line: 2, ev: "run_reuse" },
+          alt: { line: 2, ev: "spec_stream", say: [["me", "스트림은 최종 연산을 한 번 하면 닫혀요."], ["wit", "변수에 담았으니까 남아 있죠!"], ["me", "(배포된 코드 그대로 돌린 결과를 보여 주자.)"]] },
+          hint: "스트림을 변수에 담아 두고 두 번 써 본 결과가 있다.",
+          win: [
+            ["me", "응시자 수는 나오지만, 평균에서 <b>IllegalStateException: stream has already been operated upon or closed</b>예요. 화면이 멈춘 이유예요."],
+            ["witSweat", "네?! 변수에 담아 뒀는데 닫혔다고요? 테스트에선 평균이 나왔는데요!"],
+            ["judge", "변호인, 테스트와 배포 코드가 왜 다른지 밝혀 보세요."]
+          ] },
+        { combine: ["run_test", "spec_stream"], result: "oneshot",
+          t: "테스트는 통과하고 배포 코드는 멈췄다. 무엇이 달랐을까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 통과한 테스트가 스트림을 어떻게 만들었는지부터 보자.",
+          got: "테스트는 <b>매번 새 스트림</b>, 스트림은 <b>한 번 흐르면 닫힌다</b>…!\n새 증거 <b>📌 한 번 흐르는 물</b>을 얻었다." },
+        { cross: "c4b", title: "증언 ② sorted로 정렬했다", who: "witSweat",
+          lines: [
+            { t: "랭킹은 scores.stream().sorted(Comparator.reverseOrder())로 정렬했으니, scores를 출력하면 높은 점수부터 나와요.",
+              press: [["wit", "sorted라고 써 있잖아요."], ["me", "(정렬된 결과는 어디에 있지?)"]] },
+            { t: "통계는 이제 매번 새 스트림을 만들게요.",
+              press: [["wit", "알았어요, 알았어."], ["me", "(그건 맞다.)"]] },
+            { t: "랭킹이 이상한 건 선생님이 점수를 잘못 넣어서예요.",
+              press: [["wit", "95점이 둘째 줄에 있잖아요."], ["me", "(입력 순서가 그대로 나온 건 아닐까?)"]] }
+          ],
+          answer: { line: 0, ev: "run_sorted" },
+          alt: { line: 0, ev: "oneshot", say: [["me", "스트림은 원본을 바꾸지 않아요."], ["witSweat", "sorted를 불렀으니 정렬은 된 거죠!"], ["me", "(sorted를 부른 뒤 scores를 출력한 결과를 보여 주자.)"]] },
+          hint: "sorted를 부른 뒤 scores를 출력해 본 결과가 있다.",
+          win: [
+            ["me", "sorted를 불러도 scores는 <b>[70, 95, 80]</b> 그대로예요. 입력한 순서예요."],
+            ["me", "스트림은 원본을 바꾸지 않고, 정렬된 결과를 <b>받지 않으면 사라져요</b>. 게다가 최종 연산도 없으니 정렬 자체가 실행되지 않았어요."],
+            ["witSweat", "으아악─!!"]
+          ] },
+        { choice: "judge", t: "통계와 랭킹은 어떻게 고쳐야 합니까?",
+          options: [
+            { t: "스트림을 static 필드에 한 번 만들어 두고 모든 메서드가 함께 쓴다", fb: "어디에 담아도 한 번 쓰면 닫힌다. 두 번째 메서드부터 IllegalStateException이다." },
+            { t: "scores.stream().sorted()를 두 번 불러 확실하게 정렬한다", fb: "몇 번을 불러도 원본은 그대로고, 결과를 받지 않으면 사라진다." },
+            { t: "필요할 때마다 scores.stream()을 새로 만들고, 정렬은 toList()로 새로 받는다", ok: true },
+            { t: "count 대신 scoreStream.toList().size()로 센 다음 평균을 낸다", fb: "toList()도 최종 연산이다. 평균을 낼 때 똑같이 IllegalStateException이 난다." }
+          ],
+          win: [
+            ["judge", "흐름은 새로 만들고, 결과는 받아서 쓴다."],
+            ["me", "네. 고쳐 돌리면 랭킹은 <b>[95, 80, 70]</b>이고 원본은 그대로예요. 원본 자체를 정렬하고 싶으면 <code>scores.sort(…)</code>를 쓰면 돼요."]
+          ] },
+        { gain: ["run_fix"], t: "정렬 결과를 새로 받도록 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 통계가 멈춘 원인이 <b>다시 쓴 스트림</b>이고, 랭킹이 엉망인 원인이 <b>받지 않은 정렬 결과</b>라고 판단합니다. 선생님의 점수 입력은 무죄!",
+        quote: "스트림은 원본에서 한 번 흘러가는 계산이라, 최종 연산을 한 번 하면 닫히고 다시 쓰면 IllegalStateException이 난다. 스트림 연산은 원본을 바꾸지 않으므로 sorted의 결과는 toList()로 받아야 한다. 필요할 때마다 컬렉션에서 새 스트림을 만든다.",
+        clues: [
+          "스트림은 일회용: 두 번째 최종 연산 → IllegalStateException",
+          "테스트는 매번 <code>scores.stream()</code>을 새로 만들어 통과했다",
+          "<code>sorted()</code>는 원본을 바꾸지 않는다",
+          "정답: 매번 새 스트림, 결과는 <code>toList()</code>로 받기 (원본 정렬은 <code>list.sort</code>)"
+        ]
+      }
+    },
+
+    /* ---------------- 보스 ---------------- */
+    {
+      id: "cboss", ep: "보스 · 4챕터 총정리", title: "마감 정산 대법정",
+      blurb: "영수증은 안 나갔고, 합계는 멈췄고, 오늘의 VIP 화면은 죽었다. 한 줄짜리 코드 세 개의 밤.",
+      boss: true, hard: true, trust: 3,
+      characters: { owner: ["🍜", "분식왕 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "마감 정산 코드", "가게 문을 닫을 때 도는 정산 코드.", `// ① 영수증 보내고 건수 세기
+long sent = orders.stream().map(o -> sendReceipt(o)).count();
+
+// ② 회원별 합계
+Map<String, Integer> total = orders.stream()
+    .collect(Collectors.toMap(o -> o.member(), o -> o.amount()));
+
+// ③ 오늘의 VIP (5만 원 이상 주문한 첫 손님)
+String vip = orders.stream().filter(o -> o.amount() >= 50000)
+    .map(o -> o.member()).findFirst().get();`),
+        run_receipt: runEv("① 영수증 실행 결과", "오늘 주문 3건으로 ①을 돌려 본 결과.", `List<Order> orders = List.of(new Order("민지", 12000), new Order("철수", 8000), new Order("민지", 5000));
+long sent = orders.stream().map(o -> sendReceipt(o)).count();
+System.out.println("보낸 건수: " + sent);`, "보낸 건수: 3", BOSS),
+        run_total: runEv("② 합계 실행 결과", "오늘 주문 3건으로 ②를 돌려 본 결과.", `List<Order> orders = List.of(new Order("민지", 12000), new Order("철수", 8000), new Order("민지", 5000));
+try {
+    orders.stream().collect(Collectors.toMap(o -> o.member(), o -> o.amount()));
+} catch (Exception e) {
+    System.out.println(e.getClass().getSimpleName());
+}`, "IllegalStateException", BOSS),
+        run_vip: runEv("③ VIP 실행 결과", "오늘 주문 3건으로 ③을 돌려 본 결과.", `List<Order> orders = List.of(new Order("민지", 12000), new Order("철수", 8000), new Order("민지", 5000));
+try {
+    orders.stream().filter(o -> o.amount() >= 50000).map(o -> o.member()).findFirst().get();
+} catch (Exception e) {
+    System.out.println(e.getClass().getSimpleName());
+}`, "NoSuchElementException", BOSS),
+        spec_four: spec("4챕터에서 본 규칙", "1~4화 판결 요약.", `중간 연산은 최종 연산이 있어야 실행되고, count()는 map을 건너뛸 수 있다 (1화)
+toMap은 같은 키에서 멈춘다. 합칠 방법을 준다 (2화)
+Optional.get()은 비었으면 예외. orElseThrow / orElseGet (3화)
+스트림은 일회용이고 원본을 바꾸지 않는다 (4화)`),
+        run_fixed: runEv("고친 정산 실행 결과", "판결에서 고른 방식으로 고쳐서 돌려 본 결과.", `List<Order> orders = List.of(new Order("민지", 12000), new Order("철수", 8000), new Order("민지", 5000));
+orders.forEach(o -> sendReceipt(o));
+Map<String, Integer> total = orders.stream().collect(
+    Collectors.groupingBy(o -> o.member(), TreeMap::new, Collectors.summingInt(o -> o.amount())));
+String vip = orders.stream().filter(o -> o.amount() >= 50000)
+    .map(o -> o.member()).findFirst().orElse("오늘은 없음");
+System.out.println(total + " / VIP: " + vip);`, "영수증 발송: 민지\n영수증 발송: 철수\n영수증 발송: 민지\n{민지=17000, 철수=8000} / VIP: 오늘은 없음", BOSS),
+        realdata: ev("📌", "추리", "테스트에 없던 오늘", "조합 결과: 합계는 ‘같은 회원이 두 번’에서, VIP는 ‘5만 원 넘는 주문이 없음’에서 터졌다. 둘 다 테스트 데이터에는 없던 모양이다.\n스트림 한 줄은 데이터가 예상과 다를 때(중복, 빈 결과)를 어떻게 할지 직접 말해 주지 않으면, 그 순간 예외로 멈춘다.", `② 같은 키 두 번 → IllegalStateException
+③ 결과가 비어 있음 → NoSuchElementException
+→ 중복과 빈 결과를 어떻게 다룰지 코드로 정한다`)
+      },
+      script: [
+        { say: "judge", t: "정숙! <b>마감 정산 대법정</b>을 개정합니다. 신뢰도는 <b>3</b>, 첫 실수에는 힌트가 없습니다." },
+        { say: "owner", t: "어젯밤 마감 정산 때 영수증은 <b>한 통도 안 갔고</b>, 회원별 합계는 <b>멈췄고</b>, ‘오늘의 VIP’ 화면은 <b>죽었어요</b>!" },
+        { say: "wit", t: "정산 코드는 스트림 한 줄씩, 세 줄이에요. 이번엔 4챕터 사건들 다 보고 짰다고요." },
+        { gain: ["code", "run_receipt", "run_total", "run_vip", "spec_four"], t: "법정 기록에 증거 5개가 들어왔다. 4챕터 1~4화를 떠올리며 골라야 한다." },
+        { cross: "cb1", title: "증언 ① 최종 연산을 붙였다", who: "wit",
+          lines: [
+            { t: "1화에서 배웠죠. 최종 연산이 없으면 안 도니까, 이번엔 끝에 count()를 붙였어요.",
+              press: [["wit", "최종 연산, 확실히 붙였어요."], ["me", "(최종 연산이면 다 같을까.)"]] },
+            { t: "보낸 건수가 3으로 찍혔으니, 영수증 3통이 나간 게 확실해요.",
+              press: [["wit", "숫자는 거짓말 안 해요."], ["me", "(그 3은 무엇을 센 숫자일까?)"]] },
+            { t: "영수증이 안 왔다는 건 손님들 스팸함에 들어가서예요.",
+              press: [["wit", "요즘 스팸 필터가 세요."], ["me", "(스팸함 탓은 마지막에.)"]] }
+          ],
+          answer: { line: 1, ev: "run_receipt" },
+          hint: "①을 돌려 본 결과가 있다. ‘영수증 발송’이 찍혔는지 보자. 1화를 떠올려 보자.",
+          win: [
+            ["me", "①을 돌리면 <b>보낸 건수: 3</b>은 찍히는데, ‘영수증 발송’은 한 줄도 없어요. count()가 map을 건너뛰고 리스트 크기를 돌려준 거예요. 1화 그대로예요."],
+            ["witSweat", "크윽…! 영수증은 그렇다 쳐도, 합계는 문제없어요. 같은 회원이면 덮어쓰니까요!"],
+            ["judge", "증인, 회원별 합계에 대해 증언하세요."]
+          ] },
+        { cross: "cb2", title: "증언 ② 같은 회원은 덮어쓴다", who: "witSweat",
+          lines: [
+            { t: "같은 회원 주문이 또 오면 toMap이 나중 금액으로 덮어써요. 그러니 합계 화면은 떠요.",
+              press: [["wit", "Map이니까요."], ["me", "(2화에서 본 그 toMap이다.)"]] },
+            { t: "오늘은 주문이 세 건뿐이라 계산할 것도 적어요.",
+              press: [["wit", "한산한 날이었죠."], ["me", "(세 건 중 두 건이 같은 손님이었다.)"]] },
+            { t: "합계가 멈춘 건 주문이 몰려서 서버가 느렸던 거예요.",
+              press: [["wit", "세 건이라도요."], ["me", "(방금 한산했다고 하지 않았나.)"]] }
+          ],
+          answer: { line: 0, ev: "run_total" },
+          hint: "②를 돌려 본 결과가 있다. 2화를 떠올려 보자.",
+          win: [
+            ["me", "②를 돌리면 <b>IllegalStateException</b>이에요. toMap은 같은 키에서 덮어쓰지 않고 멈춰요. 민지 씨가 두 번 왔으니까요. 2화 그대로예요."],
+            ["witSweat", "크윽…! 그, 그래도 VIP는 Optional로 찾으니까 안전해요. 5만 원 넘는 주문이 없는 날이어도요!"],
+            ["judge", "…증인, 오늘의 VIP에 대해 증언하세요."]
+          ] },
+        { cross: "cb3", title: "증언 ③ Optional이니까 안전하다", who: "witSweat",
+          lines: [
+            { t: "VIP는 5만 원 이상 주문한 손님 중 첫 번째를 findFirst로 찾아요.",
+              press: [["wit", "보통 하루에 한두 명은 있어요."], ["me", "(보통은. 오늘은?)"]] },
+            { t: "그리고 마지막에 get()으로 이름을 꺼내요.",
+              press: [["wit", "Optional에서 꺼내는 거죠."], ["me", "(3화에서 본 그 get()이다.)"]] },
+            { t: "findFirst는 Optional이라, 5만 원 넘는 주문이 없는 날에도 화면은 안전하게 떠요.",
+              press: [["wit", "Optional은 null 걱정이 없잖아요."], ["me", "(오늘이 바로 그런 날이었다.)"]] }
+          ],
+          answer: { line: 2, ev: "run_vip" },
+          hint: "③을 돌려 본 결과가 있다. 3화를 떠올려 보자.",
+          win: [
+            ["me", "오늘은 5만 원 넘는 주문이 없어서, ③을 돌리면 <b>NoSuchElementException</b>이에요. 빈 상자에 get()을 했으니까요. 3화 그대로예요."],
+            ["witSweat", "으아아아악─!!!"],
+            ["wit", "…전부 인정합니다. count()가 건너뛰었고, toMap은 멈췄고, 빈 Optional에서 꺼냈어요."],
+            ["judge", "증인의 자백을 기록합니다. 변호인, 고친 코드를 고르세요."]
+          ] },
+        { choice: "judge", t: "다음 중 올바르게 고친 코드는 어느 것입니까?",
+          options: [
+            { code: true, t: `long sent = orders.stream().map(o -> sendReceipt(o)).count();
+total = orders.stream().collect(groupingBy(o -> o.member(), summingInt(o -> o.amount())));
+vip = orders.stream().filter(o -> o.amount() >= 50000)
+    .map(o -> o.member()).findFirst().orElse("오늘은 없음");`, fb: "영수증이 그대로다. count()가 map을 건너뛰어 한 통도 안 나간다." },
+            { code: true, t: `orders.forEach(o -> sendReceipt(o));
+total = orders.stream().collect(toMap(o -> o.member(), o -> o.amount()));
+vip = orders.stream().filter(o -> o.amount() >= 50000)
+    .map(o -> o.member()).findFirst().orElse("오늘은 없음");`, fb: "합계가 그대로다. 같은 회원에서 IllegalStateException이 난다." },
+            { code: true, t: `orders.forEach(o -> sendReceipt(o));
+total = orders.stream().collect(groupingBy(o -> o.member(), summingInt(o -> o.amount())));
+vip = orders.stream().filter(o -> o.amount() >= 50000)
+    .map(o -> o.member()).findFirst().get();`, fb: "VIP가 그대로다. 5만 원 넘는 주문이 없는 날 NoSuchElementException이 난다." },
+            { code: true, ok: true, t: `orders.forEach(o -> sendReceipt(o));
+total = orders.stream().collect(groupingBy(o -> o.member(), summingInt(o -> o.amount())));
+vip = orders.stream().filter(o -> o.amount() >= 50000)
+    .map(o -> o.member()).findFirst().orElse("오늘은 없음");` }
+          ],
+          win: [
+            ["judge", "보내는 건 forEach로, 같은 키는 합치고, 빈 결과는 정해 두고."],
+            ["me", "네. 고친 코드를 실제로 돌려서 확인해 둘게요."]
+          ] },
+        { gain: ["run_fixed"], t: "고친 정산을 실제로 돌려 본 결과가 법정 기록에 들어왔다. 영수증 3통, 합계 {민지=17000, 철수=8000}, VIP는 ‘오늘은 없음’." },
+        { combine: ["run_total", "run_vip"], result: "realdata",
+          t: "판결 전에 하나만 정리하자. 테스트에선 멀쩡하던 코드가 왜 오늘 터졌을까?\n오늘 데이터에서 터진 실행 결과 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 정리가 안 된다.",
+          got: "<b>중복</b>과 <b>빈 결과</b>, 테스트에 없던 오늘의 데이터…!\n새 증거 <b>📌 테스트에 없던 오늘</b>을 얻었다." },
+        { choice: "judge", t: "마지막 질문입니다. 이번 재판에서 얻을 교훈은 무엇입니까?",
+          options: [
+            { t: "스트림은 위험하니 앞으로 전부 for문으로 바꾼다", fb: "for문에도 같은 질문(중복, 빈 결과)은 남는다. 스트림이 언제 무엇을 하는지 알고 쓰면 된다." },
+            { t: "스트림 끝에는 무조건 count()를 붙여 실행을 보장한다", fb: "그 count()가 바로 영수증을 건너뛰게 만든 범인이다." },
+            { t: "실행 시점은 최종 연산이 정하고, 중복과 빈 결과는 코드로 정해 둔다", ok: true },
+            { t: "예외가 난 줄을 try-catch로 감싸 정산이 끝까지 돌게 한다", fb: "정산은 끝나지만 합계와 VIP가 틀린 채로 남는다." }
+          ],
+          win: [
+            ["judge", "…좋습니다."],
+            ["me", "한 줄짜리 스트림은 짧아서 믿음직해 보이지만, 언제 실행되는지와 데이터가 예상과 다를 때를 따져 봐야 해요."]
+          ] },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 마감 정산 사고가 <b>스트림 함정 세 가지</b>가 겹친 것이라고 판단합니다. 고친 코드로 오늘 밤 다시 정산하도록 선고합니다. 이상, 폐정!",
+        quote: "count()는 개수를 바꾸지 않는 map을 건너뛸 수 있어서, map에 넣은 발송은 실행되지 않는다. 발송 같은 일은 forEach로 한다. Collectors.toMap은 같은 키에서 멈추므로 groupingBy나 합칠 함수를 쓴다. 비어 있을 수 있는 findFirst()에 get()을 쓰지 말고 orElse, orElseGet, orElseThrow로 빈 경우를 정한다.",
+        clues: [
+          "<code>map</code> + <code>count()</code> → 발송이 건너뛰어진다 / <code>forEach</code> (1화)",
+          "<code>toMap</code> 중복 키 → IllegalStateException / <code>groupingBy</code> (2화)",
+          "빈 <code>findFirst().get()</code> → NoSuchElementException / <code>orElse</code> (3화)",
+          "스트림은 일회용, 원본을 바꾸지 않는다 (4화)",
+          "테스트에 없던 데이터(중복, 빈 결과)를 코드로 정해 둔다"
+        ]
+      }
+    }
+  ]
+};

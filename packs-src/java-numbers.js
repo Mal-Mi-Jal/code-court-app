@@ -1,0 +1,558 @@
+// Java 5챕터 — 숫자·날짜 법정 원고
+// 빌드: node tools/build-packs.js → packs/java-numbers.json
+// 실행 결과 증거(run)는 tools/verify-run.js가 JDK로 실제로 돌려서 확인한다 (java.math.*, java.time.* 자동 포함).
+// 날짜 형식은 기기 언어에 따라 달라질 수 있어서, 증거 코드에는 Locale.KOREA를 적어 둔다.
+// 힌트: 3챕터부터처럼 조합 안내는 목표만, 추궁 대사는 짧은 의심만 남긴다.
+const { ev, runEv, spec, COMMON } = require("./_helpers");
+
+module.exports = {
+  format: "code-court/v1",
+  id: "java-numbers",
+  title: "Java 숫자·날짜 법정",
+  language: "Java",
+  blurb: "double의 소수 오차, BigDecimal의 생성자와 equals, 한 달 더하기, YYYY와 DD. 화면에 보이는 값과 실제 값이 다른 함정을 반박해요.",
+  lead: "5챕터는 숫자와 날짜예요. 이번 증인은 ‘화면에 그렇게 보였다’를 믿습니다. 컴퓨터가 실제로 들고 있는 값과 규칙을 따져 보세요. 실행 결과는 모두 JDK 21로 실제로 돌린 값이에요.",
+  commonCharacters: COMMON,
+  cases: [
+    /* ---------------- 1화 ---------------- */
+    {
+      id: "c1", ep: "1화 · double의 오차", title: "1센트가 모자란 결제 사건",
+      blurb: "1.15달러를 결제했는데 카드사에는 1.14달러가 청구됐다.",
+      characters: { shop: ["💳", "해외 직구몰 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "결제 금액 코드", "손님이 낸 달러 금액을 센트(정수)로 바꿔 카드사에 보내는 부분.", `double dollars = 1.15;                // 손님이 낸 금액
+double total = dollars + shipping;    // 배송비 더하기
+int cents = (int) (dollars * 100);    // 카드사에는 센트로 보낸다`),
+        run_test: runEv("단정해의 테스트", "0.5달러와 0.25달러를 더해 본 결과.", `System.out.println(0.5 + 0.25);
+System.out.println(0.5 + 0.25 == 0.75);`, "0.75\ntrue"),
+        run_sum: runEv("0.1 + 0.2", "0.1달러와 0.2달러를 더해 본 결과.", `System.out.println(0.1 + 0.2);
+System.out.println(0.1 + 0.2 == 0.3);`, "0.30000000000000004\nfalse"),
+        spec_double: spec("double이 수를 담는 법", "IEEE 754 배정밀도와 Java 언어 명세(JLS 4.2.3)의 요약.", `double은 수를 2진수 분수(1/2, 1/4, 1/8 …의 합)로 담는다.
+0.5 = 1/2, 0.25 = 1/4 처럼 2진수로 딱 떨어지는 수는 정확하다.
+0.1, 0.2, 1.15 같은 수는 2진수로 끝없이 이어져서, 가장 가까운 값으로 잘려 담긴다.
+그래서 계산 결과에 아주 작은 오차가 생기고, (int) 변환은 소수점 아래를 그냥 버린다.`),
+        run_cents: runEv("센트로 바꾼 결과", "1.15달러를 (int)(달러 * 100)으로 센트로 바꿔 본 결과.", `double dollars = 1.15;
+System.out.println(dollars * 100);
+System.out.println((int) (dollars * 100));`, "114.99999999999999\n114"),
+        run_fix: runEv("BigDecimal로 계산한 결과", "금액을 문자열로 BigDecimal을 만들어 계산하고, 센트로 바꿔 본 결과.", `System.out.println(new BigDecimal("0.1").add(new BigDecimal("0.2")));
+System.out.println(new BigDecimal("1.15").movePointRight(2).intValueExact());`, "0.3\n115"),
+        binary: ev("📌", "추리", "운 좋게 딱 떨어진 수", "조합 결과: 0.5와 0.25는 2진수로 딱 떨어지는(1/2, 1/4) 몇 안 되는 수라서 정확하게 나왔다. 단정해의 테스트는 바로 그 수만 골라 쓴 셈이다.\n실제 가격 0.1, 0.2, 1.15는 2진수로 끝나지 않아서 아주 조금 작거나 크게 담긴다. 돈 계산엔 이 작은 오차가 그대로 드러난다.", `0.5 = 1/2, 0.25 = 1/4   → 정확 (테스트)
+0.1, 0.2, 1.15          → 근삿값 (실제 가격)`)
+      },
+      script: [
+        { say: "judge", t: "‘1센트가 모자란 결제 사건’의 재판을 시작합니다." },
+        { say: "shop", t: "손님이 1.15달러짜리 스티커를 샀는데, 카드사에는 <b>1.14달러</b>가 청구됐어요. 매일 수천 건이라 1센트씩 쌓이면 큰돈이에요!" },
+        { say: "wit", t: "금액은 double로 계산해요. 소수점까지 정확하게요. 테스트도 했다고요." },
+        { gain: ["code", "run_test", "run_sum", "spec_double", "run_cents"], t: "법정 기록에 증거 5개가 들어왔다." },
+        { cross: "c1a", title: "증언 ① double은 정확하다", who: "wit",
+          lines: [
+            { t: "금액은 double로 계산해요. 소수점 계산은 double이 정확하니까요.",
+              press: [["wit", "실수(實數) 타입이잖아요."], ["me", "(정말 정확할까?)"]] },
+            { t: "제 테스트에선 0.5 + 0.25가 0.75로 딱 맞았어요.",
+              press: [["wit", "== 0.75도 true였고요."], ["me", "(그 결과는 맞다. 고른 숫자가 문제일까.)"]] },
+            { t: "1센트 차이는 카드사 쪽 반올림 탓이에요.",
+              press: [["wit", "카드사가 늘 말썽이죠."], ["me", "(카드사 탓은 나중에.)"]] }
+          ],
+          answer: { line: 0, ev: "run_sum" },
+          alt: { line: 0, ev: "spec_double", say: [["me", "double은 0.1 같은 수를 정확하게 담지 못해요."], ["wit", "에이, 제 테스트에선 딱 맞았다니까요!"], ["me", "(다른 숫자로 돌린 결과를 보여 주자.)"]] },
+          hint: "0.5, 0.25 말고 다른 금액을 더해 본 결과가 있다.",
+          win: [
+            ["me", "0.1 + 0.2를 하면 <b>0.30000000000000004</b>예요. == 0.3은 false고요. double은 소수를 정확하게 계산하지 못해요."],
+            ["witSweat", "네?! 그럼 제 0.5 + 0.25는 왜 딱 맞았어요?!"],
+            ["judge", "변호인, 테스트만 정확했던 이유를 밝혀 보세요."]
+          ] },
+        { combine: ["run_test", "spec_double"], result: "binary",
+          t: "0.5 + 0.25는 맞고 0.1 + 0.2는 틀렸다. 무엇이 다를까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 테스트에 쓴 숫자가 어떤 숫자였는지부터 보자.",
+          got: "0.5와 0.25는 <b>2진수로 딱 떨어지는</b> 수였다…!\n새 증거 <b>📌 운 좋게 딱 떨어진 수</b>를 얻었다." },
+        { cross: "c1b", title: "증언 ② 정수로 바꾸면 정확하다", who: "witSweat",
+          lines: [
+            { t: "좋아요, double끼리 더하면 오차가 날 수 있다는 건 인정할게요.",
+              press: [["wit", "아주 작은 오차잖아요."], ["me", "(작아도 돈이다.)"]] },
+            { t: "그래서 카드사에는 원래부터 정수인 센트로 보내요.",
+              press: [["wit", "정수는 오차가 없으니까요."], ["me", "(정수로 바꾸는 순간은 어떨까.)"]] },
+            { t: "(int)(달러 * 100)으로 바꾸면 1.15달러는 정확히 115센트가 돼요.",
+              press: [["wit", "100을 곱하면 소수점이 사라지죠."], ["me", "(정말 115가 될까?)"]] }
+          ],
+          answer: { line: 2, ev: "run_cents" },
+          alt: { line: 2, ev: "binary", say: [["me", "1.15도 2진수로 딱 떨어지지 않아요."], ["witSweat", "그래도 100을 곱하면 정수가 되잖아요!"], ["me", "(실제로 바꿔 본 결과를 보여 주자.)"]] },
+          hint: "1.15달러를 센트로 바꿔 본 결과가 있다.",
+          win: [
+            ["me", "1.15 * 100은 <b>114.99999999999999</b>예요. (int)는 소수점 아래를 버리니까 <b>114센트</b>가 돼요. 1센트가 사라진 범인이에요."],
+            ["me", "정수로 바꾸기 <b>전에</b> 이미 오차가 들어 있었어요. 정수로 바꾼다고 오차가 사라지지 않아요."],
+            ["witSweat", "으아악─!!"]
+          ] },
+        { choice: "judge", t: "결제 금액은 어떻게 계산해야 합니까?",
+          options: [
+            { t: "(int)(달러 * 100 + 0.5)처럼 반올림해서 센트로 바꾼다", fb: "이번 1센트는 막지만, 더하고 빼는 계산 중의 오차는 그대로 쌓인다." },
+            { t: "double 대신 float로 바꿔 메모리도 아낀다", fb: "float는 double보다 정밀도가 낮다. 오차가 더 커진다." },
+            { t: "금액은 BigDecimal(문자열)이나 처음부터 정수 센트로 다룬다", ok: true },
+            { t: "오차가 1센트 이하면 같은 금액으로 보고 넘어간다", fb: "건마다 1센트라도 매일 수천 건이면 큰돈이다. 오차를 허용할 문제가 아니다." }
+          ],
+          win: [
+            ["judge", "돈은 2진수 분수로 담지 않는다."],
+            ["me", "네. 문자열로 만든 BigDecimal은 0.1 + 0.2가 <b>0.3</b>이고, 1.15달러는 <b>115센트</b>예요."]
+          ] },
+        { gain: ["run_fix"], t: "BigDecimal로 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 1센트가 사라진 원인이 <b>double로 계산한 돈</b>이라고 판단합니다. 카드사는 무죄!",
+        quote: "double은 수를 2진수 분수로 담기 때문에 0.1, 1.15 같은 수는 근삿값이다. 그래서 0.1 + 0.2는 0.30000000000000004이고, (int)(1.15 * 100)은 114가 된다. 0.5, 0.25처럼 딱 떨어지는 수로만 테스트하면 통과한다. 돈은 문자열로 만든 BigDecimal이나 정수 단위(센트, 원)로 다룬다.",
+        clues: [
+          "<code>0.1 + 0.2</code> = 0.30000000000000004",
+          "0.5, 0.25는 2진수로 딱 떨어져서 테스트가 우연히 통과",
+          "<code>(int)(1.15 * 100)</code> = 114 (버림)",
+          "정답: <code>new BigDecimal(\"1.15\")</code> 또는 처음부터 정수 단위"
+        ]
+      }
+    },
+
+    /* ---------------- 2화 ---------------- */
+    {
+      id: "c2", ep: "2화 · BigDecimal", title: "같은 가격이 두 번 들어간 사건",
+      blurb: "BigDecimal로 바꿨는데도 단가가 이상하고, 같은 가격이 가격표에 두 번 올라갔다.",
+      characters: { mart: ["🛒", "동네 마트 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "가격표 코드", "단가를 BigDecimal로 만들고, 같은 가격은 한 번만 가격표에 올리는 부분.", `BigDecimal unit = new BigDecimal(0.1);       // 단가 0.1만 원
+
+Set<BigDecimal> priceTags = new HashSet<>();
+priceTags.add(new BigDecimal("1.0"));        // 계산대에서 온 가격
+priceTags.add(new BigDecimal("1.00"));       // 창고 시스템에서 온 가격`),
+        run_test: runEv("단정해의 테스트", "new BigDecimal(1.5)로 단가를 만들어 찍어 본 결과.", `System.out.println(new BigDecimal(1.5));`, "1.5"),
+        run_ctor: runEv("실제 단가", "실제 단가 new BigDecimal(0.1)을 찍어 본 결과.", `System.out.println(new BigDecimal(0.1));`, "0.1000000000000000055511151231257827021181583404541015625"),
+        spec_bd: spec("BigDecimal", "BigDecimal 문서의 규칙 요약.", `new BigDecimal(double): double이 실제로 담고 있는 값을 한 자리도 빼지 않고 그대로 옮긴다.
+new BigDecimal("0.1"), BigDecimal.valueOf(0.1): 우리가 쓴 그대로의 0.1이 된다.
+BigDecimal은 값과 자릿수(scale)를 함께 기억한다. 1.0은 scale 1, 1.00은 scale 2.
+equals(): 값과 scale이 모두 같아야 true. compareTo(): 값만 비교한다 (같으면 0).`),
+        run_equals: runEv("1.0과 1.00 비교", "1.0원과 1.00원을 equals, compareTo로 비교하고, HashSet에 넣어 본 결과.", `BigDecimal a = new BigDecimal("1.0");
+BigDecimal b = new BigDecimal("1.00");
+System.out.println(a.equals(b));
+System.out.println(a.compareTo(b));
+System.out.println(new HashSet<>(List.of(a, b)).size());`, "false\n0\n2"),
+        run_fix: runEv("고친 결과", "단가는 문자열로 만들고, 가격은 stripTrailingZeros로 자릿수를 맞춰 담아 본 결과.", `System.out.println(new BigDecimal("0.1"));
+Set<BigDecimal> tags = new HashSet<>();
+tags.add(new BigDecimal("1.0").stripTrailingZeros());
+tags.add(new BigDecimal("1.00").stripTrailingZeros());
+System.out.println(tags.size());`, "0.1\n1"),
+        copied: ev("📌", "추리", "오차까지 옮겨 적은 BigDecimal", "조합 결과: new BigDecimal(0.1)은 우리가 쓴 0.1이 아니라, double이 실제로 담고 있던 0.1의 근삿값을 끝자리까지 옮겨 적는다.\n1.5는 2진수로 딱 떨어지는 수라 옮겨 적어도 1.5였다. 단정해의 테스트는 또 운 좋은 숫자였다.", `new BigDecimal(1.5) → 1.5 (딱 떨어지는 수)
+new BigDecimal(0.1) → 0.1000000000000000055511… (double의 오차까지)`)
+      },
+      script: [
+        { say: "judge", t: "‘같은 가격이 두 번 들어간 사건’의 재판을 시작합니다." },
+        { say: "mart", t: "1화 판결을 보고 BigDecimal로 바꿨어요. 그런데 단가 화면에 <b>0.1000000000…</b>이 끝없이 찍히고, 가격표에는 <b>1.0원과 1.00원</b>이 따로 올라갔어요!" },
+        { say: "wit", t: "BigDecimal은 정확한 숫자 타입이에요. 이제 오차는 끝났다고요." },
+        { gain: ["code", "run_test", "run_ctor", "spec_bd", "run_equals"], t: "법정 기록에 증거 5개가 들어왔다." },
+        { cross: "c2a", title: "증언 ① BigDecimal이면 정확하다", who: "wit",
+          lines: [
+            { t: "1화 판결대로 단가를 double에서 BigDecimal로 바꿨어요.",
+              press: [["wit", "판결은 지켜야죠."], ["me", "(바꾼 건 좋다. 어떻게 만들었지?)"]] },
+            { t: "new BigDecimal(0.1)로 만들었으니, 단가는 정확히 0.1만 원이에요.",
+              press: [["wit", "BigDecimal은 정확하니까요."], ["me", "(괄호 안의 0.1은 어떤 타입일까?)"]] },
+            { t: "제 테스트에선 new BigDecimal(1.5)가 1.5로 깔끔하게 나왔어요.",
+              press: [["wit", "소수점 아래 쓰레기 숫자도 없이요."], ["me", "(1.5라면 그렇다.)"]] }
+          ],
+          answer: { line: 1, ev: "run_ctor" },
+          alt: { line: 1, ev: "spec_bd", say: [["me", "new BigDecimal(double)은 double의 값을 그대로 옮겨요."], ["wit", "BigDecimal이 됐으면 정확한 거죠!"], ["me", "(실제 단가를 찍어 본 결과를 보여 주자.)"]] },
+          hint: "실제 단가를 찍어 본 결과가 있다.",
+          win: [
+            ["me", "new BigDecimal(0.1)을 찍으면 <b>0.1000000000000000055511151231257827021181583404541015625</b>예요. 화면에 끝없이 찍힌 그 숫자예요."],
+            ["witSweat", "네?! BigDecimal인데요? 1.5는 깔끔했잖아요!"],
+            ["judge", "변호인, 1.5만 깔끔했던 이유를 밝혀 보세요."]
+          ] },
+        { combine: ["run_test", "spec_bd"], result: "copied",
+          t: "1.5는 깔끔하고 0.1은 지저분하다. BigDecimal에 무슨 일이 있었을까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 깔끔하게 나온 테스트에서 출발해 보자.",
+          got: "new BigDecimal(double)은 double의 <b>오차까지 옮겨 적는다</b>…!\n새 증거 <b>📌 오차까지 옮겨 적은 BigDecimal</b>을 얻었다." },
+        { cross: "c2b", title: "증언 ② 같은 가격은 equals로", who: "witSweat",
+          lines: [
+            { t: "가격표에는 같은 가격을 한 번만 올려요. 1.0원과 1.00원은 같은 가격이니까 HashSet이 하나로 합쳐 줘요.",
+              press: [["wit", "HashSet은 equals로 같은지 보잖아요."], ["me", "(BigDecimal의 equals는 무엇을 볼까?)"]] },
+            { t: "단가는 이제 문자열로 만들게요.",
+              press: [["wit", "new BigDecimal(\"0.1\")로요."], ["me", "(그건 맞다.)"]] },
+            { t: "가격표에 두 번 올라간 건 직원이 두 번 입력해서예요.",
+              press: [["wit", "사람이 실수하죠."], ["me", "(한 번은 계산대, 한 번은 창고에서 왔다.)"]] }
+          ],
+          answer: { line: 0, ev: "run_equals" },
+          alt: { line: 0, ev: "spec_bd", say: [["me", "BigDecimal은 값과 자릿수를 함께 기억해요."], ["witSweat", "1.0이나 1.00이나 같은 1원이잖아요!"], ["me", "(둘을 비교한 결과를 보여 주자.)"]] },
+          hint: "1.0원과 1.00원을 비교해 본 결과가 있다.",
+          win: [
+            ["me", "1.0과 1.00은 equals가 <b>false</b>예요. compareTo는 0인데요. HashSet에 넣으면 <b>2개</b>가 돼요."],
+            ["me", "BigDecimal의 equals는 값뿐 아니라 <b>자릿수(scale)</b>까지 봐요. 계산대는 1.0, 창고는 1.00으로 보냈으니 다른 가격이 된 거예요."],
+            ["witSweat", "으아악─!!"]
+          ] },
+        { choice: "judge", t: "단가와 가격표는 어떻게 고쳐야 합니까?",
+          options: [
+            { t: "BigDecimal을 double로 되돌리고 ==로 비교한다", fb: "1화의 오차로 돌아간다." },
+            { t: "new BigDecimal(0.1)을 그대로 두고 화면에서 두 자리만 보여 준다", fb: "화면만 가릴 뿐, 계산에는 오차가 그대로 들어간다." },
+            { t: "단가는 문자열로 만들고, 같은 가격인지는 compareTo로 본다", ok: true },
+            { t: "가격표를 HashSet 대신 ArrayList로 바꾼다", fb: "ArrayList.contains도 equals로 비교한다. 1.0과 1.00은 여전히 다르다." }
+          ],
+          win: [
+            ["judge", "만들 때는 문자열로, 비교할 때는 값으로."],
+            ["me", "네. Set에 담아야 하면 <code>stripTrailingZeros()</code>로 자릿수를 맞추면 돼요. 고쳐 돌리면 단가는 <b>0.1</b>, 가격표는 <b>1개</b>예요."]
+          ] },
+        { gain: ["run_fix"], t: "고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 이상한 단가의 원인이 <b>double로 만든 BigDecimal</b>이고, 두 번 올라간 가격의 원인이 <b>자릿수까지 비교하는 equals</b>라고 판단합니다. 직원은 무죄!",
+        quote: "new BigDecimal(double)은 double의 근삿값을 끝자리까지 옮기므로 BigDecimal을 써도 오차가 남는다. 문자열 생성자나 valueOf를 쓴다. BigDecimal의 equals는 값과 자릿수(scale)를 모두 비교해서 1.0과 1.00이 다르다. 값만 비교하려면 compareTo를 쓰고, Set 같은 곳에는 stripTrailingZeros로 자릿수를 맞춘다.",
+        clues: [
+          "<code>new BigDecimal(0.1)</code> → double의 오차까지 옮긴다",
+          "<code>new BigDecimal(\"0.1\")</code>, <code>valueOf(0.1)</code> → 0.1",
+          "<code>equals</code>는 자릿수까지: 1.0 ≠ 1.00 / <code>compareTo</code>는 값만",
+          "정답: 문자열로 만들고, 비교는 <code>compareTo</code>"
+        ]
+      }
+    },
+
+    /* ---------------- 3화 ---------------- */
+    {
+      id: "c3", ep: "3화 · 날짜 계산", title: "28일로 밀려난 결제일 사건",
+      blurb: "매달 말일에 결제하기로 한 구독이 어느새 28일에 결제되고 있다.",
+      characters: { sub: ["📺", "구독 서비스 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "다음 결제일 코드", "결제가 끝나면 다음 결제일을 정하는 부분.", `LocalDate next = lastBilled.plusMonths(1);   // 지난 결제일 + 한 달
+
+long days = Period.between(joined, today).getDays();   // 가입 며칠째`),
+        run_test: runEv("단정해의 테스트", "1월 15일 가입자의 결제일을 석 달 따라가 본 결과.", `LocalDate d = LocalDate.of(2026, 1, 15);
+for (int i = 0; i < 3; i++) {
+    d = d.plusMonths(1);
+    System.out.println(d);
+}`, "2026-02-15\n2026-03-15\n2026-04-15"),
+        run_drift: runEv("1월 31일 가입자", "1월 31일 가입자의 결제일을 넉 달 따라가 본 결과.", `LocalDate d = LocalDate.of(2026, 1, 31);
+for (int i = 0; i < 4; i++) {
+    d = d.plusMonths(1);
+    System.out.println(d);
+}`, "2026-02-28\n2026-03-28\n2026-04-28\n2026-05-28"),
+        spec_month: spec("plusMonths와 Period", "LocalDate·Period 문서의 규칙 요약.", `plusMonths(n): 월만 더한다. 그 달에 없는 날이면 그 달의 마지막 날로 맞춘다 (1월 31일 + 1개월 = 2월 28일).
+결과는 그냥 날짜라서, ‘원래 31일이었다’는 사실은 남지 않는다.
+Period.between(a, b): ‘몇 년 몇 달 며칠’로 나눈다. getDays()는 그중 ‘며칠’ 부분만 준다.
+전체 일수는 ChronoUnit.DAYS.between(a, b).`),
+        run_period: runEv("가입 일수 계산", "1월 15일 가입자의 3월 10일 기준 가입 일수를 구해 본 결과.", `LocalDate joined = LocalDate.of(2026, 1, 15);
+LocalDate today = LocalDate.of(2026, 3, 10);
+System.out.println(Period.between(joined, today).getDays());
+System.out.println(Period.between(joined, today));`, "23\nP1M23D"),
+        run_fix: runEv("가입일 기준으로 계산한 결과", "결제일은 가입일에 n개월을 더해 구하고, 일수는 ChronoUnit으로 구해 본 결과.", `LocalDate joined = LocalDate.of(2026, 1, 31);
+for (int n = 1; n <= 4; n++) System.out.println(joined.plusMonths(n));
+System.out.println(ChronoUnit.DAYS.between(LocalDate.of(2026, 1, 15), LocalDate.of(2026, 3, 10)));`, "2026-02-28\n2026-03-31\n2026-04-30\n2026-05-31\n54"),
+        lost31: ev("📌", "추리", "잊혀진 31일", "조합 결과: 15일은 어느 달에나 있어서 한 달씩 더해도 15일이 유지된다. 단정해의 테스트가 통과한 이유다.\n31일 가입자는 2월에 28일로 맞춰지는 순간 ‘원래 31일’이라는 정보가 사라진다. 그다음부터는 2월 28일에 한 달을 더하니 3월 28일, 4월 28일… 다시는 말일로 돌아오지 않는다.", `15일: 모든 달에 있음 → 매달 15일 (테스트)
+31일: 2월에 28일로 깎임 → 그다음부터 28일 기준`)
+      },
+      script: [
+        { say: "judge", t: "‘28일로 밀려난 결제일 사건’의 재판을 시작합니다." },
+        { say: "sub", t: "말일 가입자는 매달 말일에 결제된다고 안내했어요. 그런데 1월 31일 가입자가 5월엔 <b>28일에 결제됐다</b>고 항의해요. 가입 일수 배지도 엉터리고요!" },
+        { say: "wit", t: "날짜는 LocalDate로 계산해요. 날짜 계산은 자바가 알아서 해 주잖아요." },
+        { gain: ["code", "run_test", "run_drift", "spec_month", "run_period"], t: "법정 기록에 증거 5개가 들어왔다." },
+        { cross: "c3a", title: "증언 ① 매달 말일에 결제된다", who: "wit",
+          lines: [
+            { t: "결제가 끝나면 지난 결제일에 한 달을 더해서 다음 결제일을 정해요.",
+              press: [["wit", "plusMonths(1). 간단하죠."], ["me", "(한 달을 더하는 기준이 ‘지난 결제일’이다.)"]] },
+            { t: "1월 15일 가입자로 테스트했더니 2월 15일, 3월 15일, 4월 15일로 딱 맞았어요.",
+              press: [["wit", "석 달이나 따라가 봤어요."], ["me", "(15일이라면 그렇다.)"]] },
+            { t: "그러니 1월 31일 가입자도 2월 말일, 3월 31일, 4월 30일, 5월 31일에 결제돼요.",
+              press: [["wit", "plusMonths가 말일을 알아서 맞춰 주니까요."], ["me", "(한 번 맞춘 다음에는?)"]] }
+          ],
+          answer: { line: 2, ev: "run_drift" },
+          alt: { line: 2, ev: "spec_month", say: [["me", "plusMonths는 없는 날을 그 달의 마지막 날로 맞추고, 원래 날짜는 기억하지 않아요."], ["wit", "말일로 맞춰 준다니까 좋은 거잖아요!"], ["me", "(31일 가입자를 따라가 본 결과를 보여 주자.)"]] },
+          hint: "1월 31일 가입자의 결제일을 따라가 본 결과가 있다.",
+          win: [
+            ["me", "1월 31일 가입자는 2월 28일, 그다음 <b>3월 28일, 4월 28일, 5월 28일</b>이에요. 2월 이후로 말일에 한 번도 결제되지 않아요."],
+            ["witSweat", "네?! 15일은 매달 15일이었는데요?!"],
+            ["judge", "변호인, 15일만 멀쩡했던 이유를 밝혀 보세요."]
+          ] },
+        { combine: ["run_test", "spec_month"], result: "lost31",
+          t: "15일은 매달 15일, 31일은 28일로 밀렸다. 무엇이 다를까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 멀쩡했던 15일 테스트에서 출발해 보자.",
+          got: "2월에 28일로 깎이는 순간 <b>31일은 잊혀진다</b>…!\n새 증거 <b>📌 잊혀진 31일</b>을 얻었다." },
+        { cross: "c3b", title: "증언 ② 가입 54일째", who: "witSweat",
+          lines: [
+            { t: "결제일은 고칠게요. 그런데 가입 일수 배지는 문제없어요.",
+              press: [["wit", "그건 다른 코드예요."], ["me", "(다른 코드지만 같은 Period 이야기다.)"]] },
+            { t: "Period.between(가입일, 오늘).getDays()로 구하니까, 1월 15일 가입자는 3월 10일에 ‘가입 54일째’가 떠요.",
+              press: [["wit", "between이니까 두 날짜 사이의 날수죠."], ["me", "(getDays()가 주는 건 전체 날수일까?)"]] },
+            { t: "배지가 이상하다는 건 손님이 날짜를 잘못 센 거예요.",
+              press: [["wit", "손으로 세면 틀리기 쉬워요."], ["me", "(정말 손님이 틀렸을까.)"]] }
+          ],
+          answer: { line: 1, ev: "run_period" },
+          alt: { line: 1, ev: "spec_month", say: [["me", "Period는 ‘몇 달 며칠’로 나누고, getDays()는 ‘며칠’ 부분만 줘요."], ["witSweat", "between인데 날수를 안 준다고요? 말도 안 돼요!"], ["me", "(실제로 구해 본 결과를 보여 주자.)"]] },
+          hint: "1월 15일 가입자의 3월 10일 가입 일수를 구해 본 결과가 있다.",
+          win: [
+            ["me", "실제로 구하면 <b>23</b>이에요. Period는 <b>P1M23D</b>, 즉 ‘1개월 23일’이고, getDays()는 그중 23일만 줘요."],
+            ["me", "전체 날수는 <code>ChronoUnit.DAYS.between</code>으로 구해야 54일이 나와요."],
+            ["witSweat", "으아악─!!"]
+          ] },
+        { choice: "judge", t: "결제일과 가입 일수는 어떻게 구해야 합니까?",
+          options: [
+            { t: "plusMonths(1) 대신 plusDays(30)으로 한 달을 더한다", fb: "달마다 날수가 달라서 결제일이 매달 하루 이틀씩 밀린다." },
+            { t: "결제일은 가입일.plusMonths(n)으로, 일수는 ChronoUnit으로 구한다", ok: true },
+            { t: "2월만 따로 if문으로 처리해 3월에 31일로 되돌린다", fb: "4월(30일), 윤년 같은 경우마다 if가 늘어난다. 기준 날짜를 바꾸는 게 답이다." },
+            { t: "가입 일수는 getMonths() * 30 + getDays()로 계산한다", fb: "한 달이 늘 30일이 아니라서 틀린다." }
+          ],
+          win: [
+            ["judge", "깎인 날짜가 아니라 처음 날짜에서 센다."],
+            ["me", "네. 가입일에서 n개월을 더하면 <b>2월 28일, 3월 31일, 4월 30일, 5월 31일</b>로 말일이 지켜지고, 일수는 <b>54</b>가 나와요."]
+          ] },
+        { gain: ["run_fix"], t: "가입일 기준으로 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 결제일이 밀린 원인이 <b>깎인 날짜에 다시 한 달을 더한 것</b>이고, 배지가 틀린 원인이 <b>Period.getDays()</b>라고 판단합니다. 손님은 날짜를 제대로 셌습니다!",
+        quote: "plusMonths는 없는 날을 그 달의 마지막 날로 맞추고 원래 날짜를 기억하지 않는다. 그래서 지난 결제일에 한 달씩 더하면 31일이 28일로 밀린 뒤 돌아오지 않는다. 15일로만 테스트하면 통과한다. 반복 날짜는 처음 날짜에 n개월을 더해 구한다. Period.getDays()는 ‘며칠’ 부분만이고, 전체 일수는 ChronoUnit.DAYS.between이다.",
+        clues: [
+          "<code>plusMonths</code>: 없는 날 → 그 달 말일, 원래 날짜는 잊는다",
+          "지난 결제일 + 1개월을 반복하면 28일로 밀린다 (15일 테스트는 통과)",
+          "<code>Period.between(…).getDays()</code> = ‘몇 달 며칠’의 며칠 부분",
+          "정답: <code>가입일.plusMonths(n)</code>, <code>ChronoUnit.DAYS.between</code>"
+        ]
+      }
+    },
+
+    /* ---------------- 4화 ---------------- */
+    {
+      id: "c4", ep: "4화 · 날짜 형식", title: "2026년이 된 연말 영수증 사건",
+      blurb: "12월 29일에 산 물건의 영수증이 ‘2026-12-29’로 찍혔다. 아직 2025년인데.",
+      characters: { tax: ["🧾", "세무사 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "영수증 날짜 코드", "영수증에 구매 날짜를 찍는 부분.", `DateTimeFormatter f = DateTimeFormatter.ofPattern("YYYY-MM-dd");
+String printed = purchased.format(f);`),
+        run_test: runEv("단정해의 테스트", "6월 15일 구매 날짜를 찍어 본 결과.", `DateTimeFormatter f = DateTimeFormatter.ofPattern("YYYY-MM-dd", Locale.KOREA);
+System.out.println(LocalDate.of(2025, 6, 15).format(f));`, "2025-06-15"),
+        run_dec: runEv("연말 영수증", "12월 27일, 28일, 29일 구매 날짜를 같은 형식으로 찍어 본 결과.", `DateTimeFormatter f = DateTimeFormatter.ofPattern("YYYY-MM-dd", Locale.KOREA);
+System.out.println(LocalDate.of(2025, 12, 27).format(f));
+System.out.println(LocalDate.of(2025, 12, 28).format(f));
+System.out.println(LocalDate.of(2025, 12, 29).format(f));`, "2025-12-27\n2026-12-28\n2026-12-29"),
+        spec_pattern: spec("날짜 형식 글자", "DateTimeFormatter 문서의 패턴 글자 요약.", `y = 연도
+Y = 주 기준 연도: 그 날짜가 속한 ‘주’가 어느 해의 주인지
+    (한국 기준: 주는 일요일에 시작하고, 1월 1일이 들어 있는 주가 그해 첫 주)
+M = 월,  m = 분
+d = 그 달의 며칠,  D = 그해의 며칠째 (1~366)
+대문자와 소문자는 서로 다른 글자다.`),
+        run_dd: runEv("DD로 찍은 결과", "yyyy-MM-DD 형식으로 1월 5일과 2월 5일을 찍어 본 결과.", `DateTimeFormatter f = DateTimeFormatter.ofPattern("yyyy-MM-DD", Locale.KOREA);
+System.out.println(LocalDate.of(2026, 1, 5).format(f));
+System.out.println(LocalDate.of(2026, 2, 5).format(f));`, "2026-01-05\n2026-02-36"),
+        run_fix: runEv("yyyy-MM-dd로 고친 결과", "yyyy-MM-dd로 고쳐 연말과 2월 날짜를 찍어 본 결과.", `DateTimeFormatter f = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.KOREA);
+System.out.println(LocalDate.of(2025, 12, 29).format(f));
+System.out.println(LocalDate.of(2026, 2, 5).format(f));`, "2025-12-29\n2026-02-05"),
+        weekyear: ev("📌", "추리", "해가 아니라 주의 해", "조합 결과: Y는 ‘그 날짜가 속한 주가 몇 년의 주인가’다. 2025년 12월 28일(일요일)에 시작하는 주에는 2026년 1월 1일이 들어 있어서, 그 주는 2026년의 첫 주가 된다.\n그래서 12월 28일부터 31일까지는 Y가 2026이다. 6월이나 12월 27일처럼 연말 마지막 며칠이 아니면 y와 Y가 같아서 테스트가 통과한다.", `12/28(일) ~ 1/3(토): 1월 1일이 든 주 → 2026년 첫 주
+→ 12/28~12/31은 Y = 2026, y = 2025`)
+      },
+      script: [
+        { say: "judge", t: "‘2026년이 된 연말 영수증 사건’의 재판을 시작합니다." },
+        { say: "tax", t: "연말정산 서류를 보는데, 12월 29일에 산 물건 영수증이 <b>2026-12-29</b>로 찍혀 있어요. 1년 뒤 날짜라 공제가 안 돼요!" },
+        { say: "wit", t: "날짜 형식은 YYYY-MM-dd예요. 연-월-일. 이보다 확실한 형식이 어디 있어요?" },
+        { gain: ["code", "run_test", "run_dec", "spec_pattern", "run_dd"], t: "법정 기록에 증거 5개가 들어왔다." },
+        { cross: "c4a", title: "증언 ① YYYY는 연도다", who: "wit",
+          lines: [
+            { t: "YYYY-MM-dd는 연-월-일이라, 어떤 날짜든 그 날짜 그대로 찍혀요.",
+              press: [["wit", "Y는 Year의 Y잖아요."], ["me", "(정말 ‘어떤 날짜든’일까?)"]] },
+            { t: "6월 15일로 테스트했더니 2025-06-15로 잘 나왔어요.",
+              press: [["wit", "한여름에 확인했어요."], ["me", "(6월이라면 그렇다.)"]] },
+            { t: "2026으로 찍힌 건 세무사님이 다음 해 서류를 보신 거예요.",
+              press: [["wit", "서류가 많으니까요."], ["me", "(정말 그럴까.)"]] }
+          ],
+          answer: { line: 0, ev: "run_dec" },
+          alt: { line: 0, ev: "spec_pattern", say: [["me", "대문자 Y는 연도가 아니라 ‘주 기준 연도’예요."], ["wit", "Year는 Year죠! 대문자든 소문자든!"], ["me", "(연말 날짜로 찍어 본 결과를 보여 주자.)"]] },
+          hint: "연말 날짜로 찍어 본 결과가 있다.",
+          win: [
+            ["me", "12월 27일은 2025-12-27인데, <b>12월 28일과 29일은 2026</b>으로 찍혀요. 같은 형식인데 날짜에 따라 연도가 바뀌어요."],
+            ["witSweat", "네?! 6월은 멀쩡했는데요? 27일도 멀쩡하고요!"],
+            ["judge", "변호인, 연말 며칠만 다음 해가 된 이유를 밝혀 보세요."]
+          ] },
+        { combine: ["run_dec", "spec_pattern"], result: "weekyear",
+          t: "12월 27일은 2025년, 28일부터는 2026년. 하루 사이에 무슨 일이 있었을까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 연말 날짜를 찍은 결과에서 출발해 보자.",
+          got: "Y는 그 날짜가 속한 <b>주</b>의 연도, 28일부터는 <b>2026년 첫 주</b>…!\n새 증거 <b>📌 해가 아니라 주의 해</b>를 얻었다." },
+        { cross: "c4b", title: "증언 ② 대소문자는 취향", who: "witSweat",
+          lines: [
+            { t: "좋아요, 연도는 소문자 yyyy로 바꿀게요.",
+              press: [["wit", "Y 하나 차이로 이럴 줄이야."], ["me", "(그건 맞다.)"]] },
+            { t: "1월 5일로 다시 테스트했더니 2026-01-05로 잘 나왔어요.",
+              press: [["wit", "새해 첫 주로 확인했어요."], ["me", "(1월이라면…)"]] },
+            { t: "날짜 칸은 DD로 써 뒀는데, 대소문자는 취향이라 dd랑 똑같아요.",
+              press: [["wit", "Day는 Day죠."], ["me", "(방금 Y에서 무슨 일이 있었더라.)"]] }
+          ],
+          answer: { line: 2, ev: "run_dd" },
+          alt: { line: 2, ev: "spec_pattern", say: [["me", "D는 ‘그해의 며칠째’예요. 그 달의 며칠은 소문자 d고요."], ["witSweat", "1월 5일은 잘 나왔다니까요!"], ["me", "(2월 날짜로 찍어 본 결과를 보여 주자.)"]] },
+          hint: "DD로 1월과 2월 날짜를 찍어 본 결과가 있다.",
+          win: [
+            ["me", "2월 5일을 찍으면 <b>2026-02-36</b>이에요. D는 ‘그해의 며칠째’라서, 31 + 5 = 36번째 날이 찍혀요."],
+            ["me", "1월에는 ‘그해의 며칠째’와 ‘그 달의 며칠’이 같아서 테스트가 통과했을 뿐이에요."],
+            ["witSweat", "으아악─!!"]
+          ] },
+        { choice: "judge", t: "영수증 날짜 형식은 어떻게 고쳐야 합니까?",
+          options: [
+            { t: "YYYY는 그대로 두고, 12월 마지막 주만 if문으로 연도를 1 뺀다", fb: "주 기준 연도는 해마다 경계가 달라지고, 1월 초에는 거꾸로 전년도가 된다. 땜질이다." },
+            { t: "연-월-일은 소문자 yyyy-MM-dd로 쓴다", ok: true },
+            { t: "YYYY-MM-DD로 대소문자를 통일한다", fb: "주 기준 연도와 그해의 며칠째를 찍는 형식이 된다. 두 함정을 한꺼번에 밟는다." },
+            { t: "날짜를 문자열로 바꾸지 말고 LocalDate의 toString만 쓴다", fb: "toString은 yyyy-MM-dd라서 이번엔 맞지만, ‘2025년 12월 29일’ 같은 형식이 필요할 때 다시 패턴을 써야 한다. 패턴 글자를 알고 쓰는 게 답이다." }
+          ],
+          win: [
+            ["judge", "Y와 y, D와 d는 다른 글자다."],
+            ["me", "네. 고쳐 돌리면 <b>2025-12-29</b>, <b>2026-02-05</b>예요. 날짜 형식 테스트에는 연말 마지막 주와 2월 이후 날짜를 꼭 넣어야 해요."]
+          ] },
+        { gain: ["run_fix"], t: "yyyy-MM-dd로 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 영수증이 2026년이 된 원인이 <b>주 기준 연도 YYYY</b>라고 판단합니다. 세무사님은 서류를 제대로 보셨습니다!",
+        quote: "날짜 형식에서 대문자 Y는 연도가 아니라 주 기준 연도라서, 다음 해 첫 주에 속한 연말 며칠은 다음 해로 찍힌다. 대문자 D는 그해의 며칠째라 2월 5일이 36으로 찍힌다. 6월이나 1월로만 테스트하면 둘 다 통과한다. 연-월-일은 yyyy-MM-dd(또는 ISO_LOCAL_DATE)로 쓰고, 연말과 2월 이후 날짜로 테스트한다.",
+        clues: [
+          "<code>Y</code> = 주 기준 연도 → 12월 28일 이후가 다음 해로 찍힐 수 있다",
+          "<code>D</code> = 그해의 며칠째 → 2월 5일이 36",
+          "6월, 1월 테스트는 우연히 통과한다",
+          "정답: <code>yyyy-MM-dd</code> / <code>ISO_LOCAL_DATE</code>"
+        ]
+      }
+    },
+
+    /* ---------------- 보스 ---------------- */
+    {
+      id: "cboss", ep: "보스 · 5챕터 총정리", title: "연말 결산 대법정",
+      blurb: "매출 합계는 1원이 안 맞고, 단가표는 중복되고, 결산 보고서는 2026년 날짜로 찍혔다.",
+      boss: true, hard: true, trust: 3,
+      characters: { acct: ["📊", "회계팀장 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "연말 결산 코드", "12월 29일 밤에 돈 연말 결산 코드의 일부.", `// ① 매출 합계 (단위: 만 원)
+double total = 0;
+for (double p : sales) total += p;            // 0.1만 원짜리 10건
+boolean ok = (total == 1.0);                  // 장부와 맞는지
+
+// ② 단가표 (같은 단가는 한 번만)
+Set<BigDecimal> unitPrices = new HashSet<>(prices);
+
+// ③ 보고서 날짜
+String date = closing.format(DateTimeFormatter.ofPattern("YYYY-MM-dd"));`),
+        run_total: runEv("① 합계 실행 결과", "0.1만 원짜리 매출 10건으로 ①을 돌려 본 결과.", `double total = 0;
+for (int i = 0; i < 10; i++) total += 0.1;
+System.out.println(total);
+System.out.println(total == 1.0);`, "0.9999999999999999\nfalse"),
+        run_set: runEv("② 단가표 실행 결과", "계산대(1.0)와 창고(1.00)에서 온 같은 단가로 ②를 돌려 본 결과.", `List<BigDecimal> prices = List.of(new BigDecimal("1.0"), new BigDecimal("1.00"));
+Set<BigDecimal> unitPrices = new HashSet<>(prices);
+System.out.println(unitPrices.size());`, "2"),
+        run_date: runEv("③ 보고서 날짜 실행 결과", "결산일 2025년 12월 29일로 ③을 돌려 본 결과.", `LocalDate closing = LocalDate.of(2025, 12, 29);
+System.out.println(closing.format(DateTimeFormatter.ofPattern("YYYY-MM-dd", Locale.KOREA)));`, "2026-12-29"),
+        spec_five: spec("5챕터에서 본 규칙", "1~4화 판결 요약.", `double은 0.1을 정확히 담지 못한다. 돈은 BigDecimal(문자열)이나 정수 단위 (1화)
+BigDecimal의 equals는 자릿수까지 본다. 값 비교는 compareTo (2화)
+plusMonths는 말일을 깎고 잊는다. 처음 날짜에서 센다 (3화)
+Y는 주 기준 연도, D는 그해의 며칠째. 연-월-일은 yyyy-MM-dd (4화)`),
+        run_fixed: runEv("고친 결산 실행 결과", "판결에서 고른 방식으로 고쳐서 돌려 본 결과.", `BigDecimal total = BigDecimal.ZERO;
+for (int i = 0; i < 10; i++) total = total.add(new BigDecimal("0.1"));
+System.out.println(total + " " + (total.compareTo(BigDecimal.ONE) == 0));
+Set<BigDecimal> unitPrices = new HashSet<>();
+for (BigDecimal p : List.of(new BigDecimal("1.0"), new BigDecimal("1.00"))) unitPrices.add(p.stripTrailingZeros());
+System.out.println(unitPrices.size());
+System.out.println(LocalDate.of(2025, 12, 29).format(DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.KOREA)));`, "1.0 true\n1\n2025-12-29"),
+        surface: ev("📌", "추리", "보이는 값과 담긴 값", "조합 결과: 0.1을 10번 더한 합계는 1.0처럼 보이지만 실제로는 0.9999999999999999이고, 1.0과 1.00은 같아 보이지만 BigDecimal 안에서는 자릿수가 다르다.\n화면에 보이는 숫자가 아니라 컴퓨터가 실제로 들고 있는 값과 비교 규칙이 결과를 정한다.", `0.1 × 10 → 0.9999999999999999 (1.0처럼 보임)
+1.0 vs 1.00 → 값은 같고 자릿수가 다름 (equals false)`)
+      },
+      script: [
+        { say: "judge", t: "정숙! <b>연말 결산 대법정</b>을 개정합니다. 신뢰도는 <b>3</b>, 첫 실수에는 힌트가 없습니다." },
+        { say: "acct", t: "12월 29일 결산이 엉망이에요. 매출 합계는 장부와 <b>안 맞는다</b>고 뜨고, 단가표엔 같은 단가가 <b>두 줄</b>, 결산 보고서 날짜는 <b>2026년</b>이에요!" },
+        { say: "wit", t: "결산 코드는 제가 리뷰했어요. 5챕터 사건들 다 봤다고요. …거의 다요." },
+        { gain: ["code", "run_total", "run_set", "run_date", "spec_five"], t: "법정 기록에 증거 5개가 들어왔다. 5챕터 1~4화를 떠올리며 골라야 한다." },
+        { cross: "cb1", title: "증언 ① 합계는 1.0", who: "wit",
+          lines: [
+            { t: "매출은 0.1만 원짜리가 10건이에요.",
+              press: [["wit", "연말이라 소품이 잘 팔렸죠."], ["me", "(0.1… 1화에서 본 숫자다.)"]] },
+            { t: "double로 열 번 더하면 정확히 1.0이 되니까, 장부의 1.0만 원과 ==로 맞아요.",
+              press: [["wit", "0.1이 열 개면 1이죠."], ["me", "(그 열 번의 오차는?)"]] },
+            { t: "장부와 안 맞는다는 건 장부를 손으로 써서 그래요.",
+              press: [["wit", "손글씨는 틀리기 쉬워요."], ["me", "(장부 탓은 마지막에.)"]] }
+          ],
+          answer: { line: 1, ev: "run_total" },
+          hint: "①을 돌려 본 결과가 있다. 1화를 떠올려 보자.",
+          win: [
+            ["me", "0.1을 열 번 더하면 <b>0.9999999999999999</b>예요. 1.0과 ==로 비교하면 false고요. 1화 그대로예요."],
+            ["witSweat", "크윽…! 합계는 그렇다 쳐도, 단가표는 BigDecimal이에요. 1.0이나 1.00이나 같은 단가로 합쳐져요!"],
+            ["judge", "증인, 단가표에 대해 증언하세요."]
+          ] },
+        { cross: "cb2", title: "증언 ② 같은 단가는 합쳐진다", who: "witSweat",
+          lines: [
+            { t: "단가표는 HashSet에 담아서, 1.0과 1.00 같은 같은 단가는 한 줄로 합쳐져요.",
+              press: [["wit", "BigDecimal이니까 정확하잖아요."], ["me", "(2화에서 본 그 equals다.)"]] },
+            { t: "단가는 이번엔 문자열로 만들었어요. new BigDecimal(\"1.0\")처럼요.",
+              press: [["wit", "2화 판결대로요."], ["me", "(그건 맞다.)"]] },
+            { t: "두 줄이 된 건 창고 직원이 단가를 또 올려서예요.",
+              press: [["wit", "창고가 좀 바빠요."], ["me", "(정말 직원 탓일까.)"]] }
+          ],
+          answer: { line: 0, ev: "run_set" },
+          hint: "②를 돌려 본 결과가 있다. 2화를 떠올려 보자.",
+          win: [
+            ["me", "1.0과 1.00을 HashSet에 담으면 <b>2개</b>예요. BigDecimal의 equals는 자릿수까지 비교하니까요. 2화 그대로예요."],
+            ["witSweat", "크윽…! 그, 그래도 보고서 날짜는 확실해요. YYYY-MM-dd로 찍으니까 2025년 결산은 2025년으로 나와요!"],
+            ["judge", "…증인, 보고서 날짜에 대해 증언하세요."]
+          ] },
+        { cross: "cb3", title: "증언 ③ 2025년 보고서", who: "witSweat",
+          lines: [
+            { t: "결산일은 12월 29일이에요.",
+              press: [["wit", "올해 마지막 영업 주죠."], ["me", "(연말 마지막 주… 4화에서 본 날짜 범위다.)"]] },
+            { t: "보고서 날짜는 YYYY-MM-dd 형식으로 찍어요.",
+              press: [["wit", "연-월-일 표준이죠."], ["me", "(대문자 Y.)"]] },
+            { t: "그러니 결산 보고서는 2025-12-29로 2025년 보고서에 들어가요.",
+              press: [["wit", "12월이니까 당연히 2025년이죠."], ["me", "(4화에서 무슨 일이 있었더라.)"]] }
+          ],
+          answer: { line: 2, ev: "run_date" },
+          hint: "③을 돌려 본 결과가 있다. 4화를 떠올려 보자.",
+          win: [
+            ["me", "12월 29일을 YYYY-MM-dd로 찍으면 <b>2026-12-29</b>예요. Y는 주 기준 연도고, 12월 28일부터는 2026년 첫 주예요. 4화 그대로예요."],
+            ["witSweat", "으아아아악─!!!"],
+            ["wit", "…전부 인정합니다. 돈을 double로 더했고, 단가를 equals로 비교했고, 연도를 Y로 찍었어요."],
+            ["judge", "증인의 자백을 기록합니다. 변호인, 고친 코드를 고르세요."]
+          ] },
+        { choice: "judge", t: "다음 중 올바르게 고친 코드는 어느 것입니까?",
+          options: [
+            { code: true, ok: true, t: `total = total.add(new BigDecimal("0.1"));   // 10건
+ok = total.compareTo(BigDecimal.ONE) == 0;
+unitPrices.add(p.stripTrailingZeros());
+date = closing.format(ofPattern("yyyy-MM-dd"));` },
+            { code: true, t: `total += 0.1;   // 10건, double
+ok = Math.round(total) == 1;
+unitPrices.add(p.stripTrailingZeros());
+date = closing.format(ofPattern("yyyy-MM-dd"));`, fb: "합계가 여전히 double이다. 반올림으로 비교만 가렸을 뿐, 큰 금액에서는 오차가 원 단위로 드러난다." },
+            { code: true, t: `total = total.add(new BigDecimal("0.1"));   // 10건
+ok = total.equals(BigDecimal.ONE);
+unitPrices.add(p.stripTrailingZeros());
+date = closing.format(ofPattern("yyyy-MM-dd"));`, fb: "합계는 1.0(scale 1), ONE은 1(scale 0)이라 equals가 false다. 값 비교는 compareTo다." },
+            { code: true, t: `total = total.add(new BigDecimal("0.1"));   // 10건
+ok = total.compareTo(BigDecimal.ONE) == 0;
+unitPrices.add(p.stripTrailingZeros());
+date = closing.format(ofPattern("YYYY-MM-dd"));`, fb: "보고서 날짜가 그대로다. 12월 29일이 2026년으로 찍힌다." }
+          ],
+          win: [
+            ["judge", "돈은 BigDecimal로, 비교는 값으로, 연도는 소문자로."],
+            ["me", "네. 고친 코드를 실제로 돌려서 확인해 둘게요."]
+          ] },
+        { gain: ["run_fixed"], t: "고친 결산을 실제로 돌려 본 결과가 법정 기록에 들어왔다. 합계 1.0(장부와 일치), 단가표 1줄, 보고서 날짜 2025-12-29." },
+        { combine: ["run_total", "run_set"], result: "surface",
+          t: "판결 전에 하나만 정리하자. 합계와 단가표는 왜 ‘같아 보이는데’ 틀렸을까?\n같아 보였던 값의 실행 결과 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 정리가 안 된다.",
+          got: "<b>보이는 값</b>과 <b>담긴 값</b>은 다르다…!\n새 증거 <b>📌 보이는 값과 담긴 값</b>을 얻었다." },
+        { choice: "judge", t: "마지막 질문입니다. 이번 재판에서 얻을 교훈은 무엇입니까?",
+          options: [
+            { t: "숫자와 날짜는 화면에 찍힌 모양을 눈으로 확인하면 충분하다", fb: "0.9999999999999999는 화면에 1.0처럼 반올림돼 보일 때도 많다. 눈으로는 못 잡는다." },
+            { t: "화면이 아니라 실제로 담긴 값과 규칙(자릿수, 패턴)을 확인한다", ok: true },
+            { t: "BigDecimal만 쓰면 숫자 문제는 전부 해결된다", fb: "2화처럼 만드는 법과 비교하는 법을 모르면 BigDecimal도 틀린다." },
+            { t: "날짜 형식은 대문자로 통일해 헷갈림을 없앤다", fb: "YYYY와 DD가 바로 대문자 함정이었다." }
+          ],
+          win: [
+            ["judge", "…좋습니다."],
+            ["me", "같아 보이는 0.1, 1.0과 1.00, YYYY와 yyyy. 이번 함정은 전부 화면에선 멀쩡해 보였어요. 그래서 경계 값(연말, 2월, 딱 떨어지지 않는 수)으로 실제 값을 확인해야 해요."]
+          ] },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 연말 결산 사고가 <b>보이는 값과 담긴 값이 다른 함정 세 가지</b>가 겹친 것이라고 판단합니다. 고친 코드로 결산을 다시 하도록 선고합니다. 이상, 폐정!",
+        quote: "double은 0.1을 근삿값으로 담아 열 번 더하면 0.9999999999999999가 되므로, 돈은 문자열로 만든 BigDecimal이나 정수 단위로 계산한다. BigDecimal의 equals는 자릿수까지 비교하니 값은 compareTo로 비교한다. 날짜 형식의 Y는 주 기준 연도라 연말이 다음 해로 찍히므로 yyyy를 쓴다. 화면에 보이는 값이 아니라 실제 값과 규칙을 확인한다.",
+        clues: [
+          "<code>0.1</code>을 열 번 더하면 0.9999999999999999 → BigDecimal(문자열) (1화)",
+          "<code>equals</code>는 자릿수까지: 1.0 ≠ 1.00 → <code>compareTo</code> (2화)",
+          "<code>YYYY</code>는 주 기준 연도 → <code>yyyy</code> (4화)",
+          "반복 날짜는 처음 날짜에서 센다 (3화)",
+          "보이는 값이 아니라 담긴 값과 규칙을 확인한다"
+        ]
+      }
+    }
+  ]
+};

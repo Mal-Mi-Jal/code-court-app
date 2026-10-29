@@ -20,6 +20,9 @@ packs-src/_helpers.js     원고 공용 도우미 (ev / runEv / spec). _로 시�
 packs/java-basics.json    Java 1챕터 기초 법정 (사건 4개 + 보스)
 packs/java-collections.json  Java 2챕터 컬렉션 법정 (사건 4개 + 보스)
 packs/java-objects.json      Java 3챕터 객체·예외 법정 (사건 4개 + 보스)
+packs/java-streams.json      Java 4챕터 스트림 법정 (사건 4개 + 보스)
+packs/java-numbers.json      Java 5챕터 숫자·날짜 법정 (사건 4개 + 보스)
+packs/java-concurrency.json  Java 6챕터 동시성 법정 (사건 4개 + 보스. 증거는 매번 같은 출력이 나오게 짬)
 packs/_test/              엔진 회귀 테스트용 팩 (#dev에서만 보임)
 tools/build-packs.js      원고 → JSON (--check: 빌드 결과가 커밋된 파일과 같은지)
 tools/validate.js         node tools/validate.js <팩>
@@ -55,6 +58,6 @@ python -m http.server 5173   # 그다음 http://127.0.0.1:5173 (개발용 팩은
 |---|---|---|
 | 1 | 조합할 증거 두 개를 알려 준다 | "…해 본 기록이 있다"로 증거를 가리킨다 |
 | 2 | 증거 하나만 알려 준다 | 의심만 하고 증거는 가리키지 않는다 |
-| 3 | 밝힐 목표만 말한다 | 짧은 의심 한마디 |
+| 3~ | 밝힐 목표만 말한다 | 짧은 의심 한마디 |
 
 신뢰도가 바닥나면 "다시 하기"(이 장면 처음부터) 또는 앱에서 "광고 보고 이어하기"(그 자리에서 신뢰도 1칸).

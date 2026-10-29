@@ -1,8 +1,11 @@
 {
   "packs": [
-    { "id": "java-basics", "file": "packs/java-basics.json", "title": "Java 기초 법정", "language": "Java", "chapter": 1, "topic": "기본 타입·문자열", "blurb": "정수 나눗셈, 오버플로, == 와 equals, Integer 캐시, 문자열 불변. 쉬운 함정부터 실행 결과로 반박해요." },
-    { "id": "java-collections", "file": "packs/java-collections.json", "title": "Java 컬렉션 법정", "language": "Java", "chapter": 2, "topic": "컬렉션", "blurb": "HashMap 키, 반복 중 삭제, Arrays.asList, HashMap의 순서. 테스트에서만 통과하는 함정들을 반박해요." },
-    { "id": "java-objects", "file": "packs/java-objects.json", "title": "Java 객체·예외 법정", "language": "Java", "chapter": 3, "topic": "객체·예외", "blurb": "얕은 복사, finally와 return, 체크 예외와 원인, 제네릭 타입 소거. 조용히 틀리는 코드를 반박해요." },
-    { "id": "ramen-sample", "file": "packs/_test/ramen-sample.json", "title": "라멘 코드 법정 (테스트용)", "blurb": "엔진 회귀 테스트용 팩", "test": true }
+    {"id": "java-basics", "file": "packs/java-basics.json", "title": "Java 기초 법정", "language": "Java", "chapter": 1, "topic": "기본 타입·문자열", "blurb": "정수 나눗셈, 오버플로, == 와 equals, Integer 캐시, 문자열 불변. 쉬운 함정부터 실행 결과로 반박해요."},
+    {"id": "java-collections", "file": "packs/java-collections.json", "title": "Java 컬렉션 법정", "language": "Java", "chapter": 2, "topic": "컬렉션", "blurb": "HashMap 키, 반복 중 삭제, Arrays.asList, HashMap의 순서. 테스트에서만 통과하는 함정들을 반박해요."},
+    {"id": "java-objects", "file": "packs/java-objects.json", "title": "Java 객체·예외 법정", "language": "Java", "chapter": 3, "topic": "객체·예외", "blurb": "얕은 복사, finally와 return, 체크 예외와 원인, 제네릭 타입 소거. 조용히 틀리는 코드를 반박해요."},
+    {"id": "java-streams", "file": "packs/java-streams.json", "title": "Java 스트림 법정", "language": "Java", "chapter": 4, "topic": "스트림·람다", "blurb": "스트림의 지연 실행, Collectors.toMap의 중복 키, Optional의 get과 orElse, 일회용 스트림. 짧고 멋진 코드 속 함정을 반박해요."},
+    {"id": "java-numbers", "file": "packs/java-numbers.json", "title": "Java 숫자·날짜 법정", "language": "Java", "chapter": 5, "topic": "숫자·날짜", "blurb": "double의 소수 오차, BigDecimal의 생성자와 equals, 한 달 더하기, YYYY와 DD. 화면에 보이는 값과 실제 값이 다른 함정을 반박해요."},
+    {"id": "java-concurrency", "file": "packs/java-concurrency.json", "title": "Java 동시성 법정", "language": "Java", "chapter": 6, "topic": "동시성 기초", "blurb": "start와 run, join, count++ 경쟁 상태와 volatile, ConcurrentHashMap, 다른 스레드의 예외. ‘가끔’ 틀리는 코드를 반박해요."},
+    {"id": "ramen-sample", "file": "packs/_test/ramen-sample.json", "title": "라멘 코드 법정 (테스트용)", "blurb": "엔진 회귀 테스트용 팩", "test": true}
   ]
 }

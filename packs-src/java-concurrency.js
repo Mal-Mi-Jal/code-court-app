@@ -1,0 +1,627 @@
+// Java 6챕터 — 동시성 기초 법정 원고
+// 빌드: node tools/build-packs.js → packs/java-concurrency.json
+// 실행 결과 증거(run)는 tools/verify-run.js가 JDK로 실제로 돌려서 확인한다 (java.util.concurrent.* 자동 포함).
+// 동시성 버그는 실행할 때마다 결과가 다를 수 있다. 그래서 증거는 늘 같은 출력이 나오게 짠다:
+//   - 경쟁 상태: 최대 50번 돌려 ‘한 번이라도 모자란 적이 있나’를 찍는다 (고친 코드는 늘 false)
+//   - 끼어드는 순서: 두 스레드의 단계를 한 줄씩 직접 재현한다
+//   - 스레드 이름은 직접 붙인다 (기본 이름 Thread-N은 번호가 바뀐다)
+// 힌트: 3챕터부터처럼 조합 안내는 목표만, 추궁 대사는 짧은 의심만 남긴다.
+const { ev, runEv, spec, COMMON } = require("./_helpers");
+
+const WORK = `static int done = 0;
+
+static void processAll() {
+    try { Thread.sleep(300); } catch (InterruptedException e) {}   // 주문 3건 처리
+    System.out.println("처리하는 스레드: " + Thread.currentThread().getName());
+    done = 3;
+}`;
+
+// 두 스레드로 10만 번씩 더하기를 최대 50번 해 보고, 20만이 안 된 적이 있는지 찍는다
+const raceLoop = (reset, body, total) => `boolean lost = false;
+for (int k = 0; k < 50 && !lost; k++) {
+    ${reset}
+    Runnable r = () -> { for (int i = 0; i < 100_000; i++) ${body} };
+    Thread a = new Thread(r), b = new Thread(r);
+    a.start(); b.start(); a.join(); b.join();
+    if (${total} != 200_000) lost = true;
+}
+System.out.println("모자란 적이 있다: " + lost);`;
+
+const VISITS = `static int visits = 0;`;
+const VVISITS = `static volatile int visits = 0;`;
+const AVISITS = `static AtomicInteger visits = new AtomicInteger();`;
+
+const BOSS = `static int joined = 0;
+
+static void sendNotice(String who) {
+    System.out.println("알림 보내는 스레드: " + Thread.currentThread().getName());
+}`;
+
+module.exports = {
+  format: "code-court/v1",
+  id: "java-concurrency",
+  title: "Java 동시성 법정",
+  language: "Java",
+  blurb: "start와 run, join, count++ 경쟁 상태와 volatile, ConcurrentHashMap, 다른 스레드의 예외. ‘가끔’ 틀리는 코드를 반박해요.",
+  lead: "6챕터는 동시성 기초예요. 이번 버그들은 혼자 돌리면 멀쩡하고, 여럿이 동시에 돌 때만 가끔 드러납니다. 그래서 실행 결과도 ‘여러 번 돌려 한 번이라도 틀린 적이 있나’로 보여 줘요. 실행 결과는 모두 JDK 21로 실제로 돌린 값이에요.",
+  commonCharacters: COMMON,
+  cases: [
+    /* ---------------- 1화 ---------------- */
+    {
+      id: "c1", ep: "1화 · start와 run", title: "혼자 일한 직원 스레드 사건",
+      blurb: "주문 처리를 새 스레드에 맡겼는데, 화면은 처리가 끝날 때까지 멈춰 있다.",
+      characters: { kiosk: ["🖥️", "키오스크 업체 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "주문 처리 코드", "주문 처리를 새 스레드에 맡기고, 화면은 계속 손님을 받게 하려던 부분.", `${WORK}
+
+Thread worker = new Thread(() -> processAll(), "worker-1");
+worker.run();                                  // 주문 처리 시작
+System.out.println("처리된 주문: " + done);`),
+        run_test: runEv("단정해의 테스트", "배포된 코드 그대로 돌려 처리된 주문 수만 확인한 결과.", `Thread worker = new Thread(() -> processAll(), "worker-1");
+worker.run();
+System.out.println("처리된 주문: " + done);`, "처리하는 스레드: main\n처리된 주문: 3", WORK),
+        spec_thread: spec("Thread의 start와 run", "Thread 문서의 규칙 요약.", `start(): 새 스레드를 만들고, 그 새 스레드에서 run()을 실행한다. start를 부른 쪽은 기다리지 않고 바로 다음 줄로 간다.
+run(): 그냥 보통 메서드 호출이다. 부른 스레드(예: main)가 직접 실행하고, 끝날 때까지 기다린다.
+join(): 그 스레드가 끝날 때까지 기다린다.`),
+        run_nojoin: runEv("start()로 바꾼 결과", "run()을 start()로 바꾸고, 바로 처리된 주문 수를 출력해 본 결과.", `Thread worker = new Thread(() -> processAll(), "worker-1");
+worker.start();
+System.out.println("처리된 주문: " + done);
+worker.join();   // (프로그램이 끝나기 전에 정리용으로만 기다림)`, "처리된 주문: 0\n처리하는 스레드: worker-1", WORK),
+        run_fix: runEv("start() + join()", "start()로 새 스레드에 맡기고, 결과가 필요한 곳에서 join()으로 기다린 결과.", `Thread worker = new Thread(() -> processAll(), "worker-1");
+worker.start();
+System.out.println("화면은 계속 손님을 받는 중");
+worker.join();
+System.out.println("처리된 주문: " + done);`, "화면은 계속 손님을 받는 중\n처리하는 스레드: worker-1\n처리된 주문: 3", WORK),
+        alone: ev("📌", "추리", "새 스레드는 없었다", "조합 결과: run()은 새 스레드를 만들지 않고 main이 직접 실행하는 보통 메서드 호출이다. 실행 결과에도 ‘처리하는 스레드: main’이 찍혀 있다.\nmain이 주문 처리를 끝까지 기다렸으니 결과 3은 맞았지만, 그동안 화면(main)은 아무것도 못 했다. 테스트는 결과 숫자만 봤기 때문에 통과했다.", `worker.run()   → main이 직접 실행 → 끝날 때까지 화면 멈춤 (결과는 맞음)
+worker.start() → worker-1이 실행 → main은 바로 다음 줄로`)
+      },
+      script: [
+        { say: "judge", t: "‘혼자 일한 직원 스레드 사건’의 재판을 시작합니다." },
+        { say: "kiosk", t: "주문 처리는 따로 돌리고 화면은 다음 손님을 받게 해 달라고 했어요. 그런데 주문을 넣으면 <b>화면이 3초씩 멈춰요</b>!" },
+        { say: "wit", t: "주문 처리는 새 스레드에 맡겼어요. 테스트에서 처리된 주문도 3건으로 딱 맞았고요." },
+        { gain: ["code", "run_test", "spec_thread", "run_nojoin"], t: "법정 기록에 증거 4개가 들어왔다." },
+        { cross: "c1a", title: "증언 ① 새 스레드가 처리한다", who: "wit",
+          lines: [
+            { t: "new Thread로 직원 스레드를 만들고 run()을 불렀으니, 주문은 새 스레드에서 따로 처리돼요.",
+              press: [["wit", "run이 ‘달려라’잖아요."], ["me", "(누가 달렸을까?)"]] },
+            { t: "제 테스트에선 처리된 주문이 3건으로 딱 맞았어요.",
+              press: [["wit", "숫자가 정확했어요."], ["me", "(숫자는 맞다. 다른 줄은?)"]] },
+            { t: "화면이 멈추는 건 키오스크가 오래돼서예요.",
+              press: [["wit", "5년 된 기계래요."], ["me", "(기계 탓은 나중에.)"]] }
+          ],
+          answer: { line: 0, ev: "run_test" },
+          alt: { line: 0, ev: "spec_thread", say: [["me", "run()은 새 스레드를 만들지 않는 보통 메서드 호출이에요."], ["wit", "new Thread를 했으니 새 스레드죠!"], ["me", "(실행 결과에서 누가 처리했는지 보여 주자.)"]] },
+          hint: "단정해의 테스트 결과를 처음부터 끝까지 읽어 보자. 누가 처리했는지 적혀 있다.",
+          win: [
+            ["me", "단정해 씨의 테스트 결과 첫 줄을 보세요. <b>‘처리하는 스레드: main’</b>이에요. worker-1이 아니라 main, 즉 화면 스레드가 직접 처리했어요."],
+            ["witSweat", "네?! new Thread를 만들었는데 main이라고요? 결과도 3으로 맞았잖아요!"],
+            ["judge", "변호인, 결과는 맞는데 화면이 멈춘 이유를 밝혀 보세요."]
+          ] },
+        { combine: ["run_test", "spec_thread"], result: "alone",
+          t: "결과는 맞았는데 화면은 멈췄다. 무슨 일이 있었을까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 누가 주문을 처리했는지 찍힌 결과에서 출발해 보자.",
+          got: "run()은 <b>main이 직접</b> 실행하는 보통 호출, <b>새 스레드는 없었다</b>…!\n새 증거 <b>📌 새 스레드는 없었다</b>를 얻었다." },
+        { cross: "c1b", title: "증언 ② start면 바로 결과가 나온다", who: "witSweat",
+          lines: [
+            { t: "좋아요, run()을 start()로 바꿀게요.",
+              press: [["wit", "한 글자 차이네요."], ["me", "(그건 맞다.)"]] },
+            { t: "이제 worker-1이 주문을 처리하니까 화면은 안 멈춰요.",
+              press: [["wit", "main은 자유죠."], ["me", "(main이 바로 다음 줄로 간다면…)"]] },
+            { t: "그리고 바로 다음 줄에서 처리된 주문 수를 출력하면 3이 나와요. 순서대로 썼으니까요.",
+              press: [["wit", "위에서 아래로 실행되잖아요."], ["me", "(다른 스레드도 그 순서를 지킬까?)"]] }
+          ],
+          answer: { line: 2, ev: "run_nojoin" },
+          alt: { line: 2, ev: "alone", say: [["me", "start()를 부른 main은 기다리지 않고 바로 다음 줄로 가요."], ["witSweat", "그래도 위에서 시작했으니 먼저 끝나겠죠!"], ["me", "(start()로 바꿔 돌린 결과를 보여 주자.)"]] },
+          hint: "start()로 바꾸고 바로 출력해 본 결과가 있다.",
+          win: [
+            ["me", "start()로 바꾸고 바로 출력하면 <b>‘처리된 주문: 0’</b>이에요. worker-1이 아직 일하는 중인데 main이 먼저 숫자를 찍었어요."],
+            ["me", "결과가 필요한 곳에서는 <b>join()</b>으로 그 스레드가 끝나길 기다려야 해요."],
+            ["witSweat", "으아악─!!"]
+          ] },
+        { choice: "judge", t: "주문 처리는 어떻게 고쳐야 합니까?",
+          options: [
+            { t: "run()을 그대로 두고, 처리 시간을 줄이도록 최적화한다", fb: "여전히 main이 직접 처리해서 그동안 화면이 멈춘다. 짧아질 뿐이다." },
+            { t: "start()로 바꾸고, 출력 전에 Thread.sleep(500)으로 기다린다", fb: "처리가 500ms를 넘는 날엔 또 0이 나온다. 시간으로 기다리지 말고 끝나길 기다린다." },
+            { t: "start()로 새 스레드에 맡기고, 결과가 필요할 때 join()한다", ok: true },
+            { t: "run()과 start()를 둘 다 불러 확실하게 처리한다", fb: "주문이 두 번 처리된다. main에서 한 번, worker-1에서 한 번." }
+          ],
+          win: [
+            ["judge", "맡길 땐 start, 결과가 필요하면 join."],
+            ["me", "네. 고쳐 돌리면 화면은 바로 다음 일을 하고, worker-1이 처리한 뒤 <b>처리된 주문: 3</b>이 찍혀요."]
+          ] },
+        { gain: ["run_fix"], t: "start()와 join()으로 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 화면이 멈춘 원인이 <b>새 스레드를 만들지 않는 run() 호출</b>이라고 판단합니다. 키오스크 기계는 무죄!",
+        quote: "Thread의 run()은 보통 메서드 호출이라 부른 스레드(main)가 직접 실행하고 끝날 때까지 기다린다. 결과 숫자는 맞아서 테스트는 통과한다. 새 스레드에서 돌리려면 start()를 부르고, 그 결과가 필요한 곳에서는 join()으로 끝나길 기다린다. start만 하고 바로 결과를 읽으면 아직 0이다.",
+        clues: [
+          "<code>run()</code> = 보통 호출, main이 직접 실행 (‘처리하는 스레드: main’)",
+          "결과 숫자만 본 테스트는 우연히 통과한다",
+          "<code>start()</code> 뒤 바로 읽으면 아직 끝나지 않았다 (0)",
+          "정답: <code>start()</code> + 결과가 필요할 때 <code>join()</code>"
+        ]
+      }
+    },
+
+    /* ---------------- 2화 ---------------- */
+    {
+      id: "c2", ep: "2화 · 경쟁 상태", title: "모자란 방문자 수 사건",
+      blurb: "이벤트 페이지 방문자 수가 서버 로그보다 늘 적다. 그것도 매번 다르게.",
+      characters: { ev: ["🎉", "이벤트 담당자 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "방문자 수 코드", "방문할 때마다 방문자 수를 하나 올리는 부분. 요청은 여러 스레드가 동시에 처리한다.", `${VISITS}
+
+void onVisit() {
+    visits++;      // 방문자 수 + 1
+}`),
+        run_test: runEv("단정해의 테스트", "스레드 하나로 20만 번 방문시켜 본 결과.", `for (int i = 0; i < 200_000; i++) visits++;
+System.out.println(visits);`, "200000", VISITS),
+        run_race: runEv("두 스레드로 돌린 결과", "두 스레드가 10만 번씩 동시에 방문시키기를 최대 50번 해 보고, 20만이 안 된 적이 있는지 찍은 결과.", raceLoop("visits = 0;", "visits++;", "visits"), "모자란 적이 있다: true", VISITS),
+        spec_race: spec("count++와 경쟁 상태", "Java 언어 명세(JLS 17)와 java.util.concurrent 문서의 요약.", `visits++는 한 줄이지만 실제로는 세 단계다: ① 읽기 ② 1 더하기 ③ 쓰기.
+두 스레드가 이 단계 사이에 끼어들면, 둘 다 같은 값을 읽고 같은 값을 써서 한 번이 사라진다.
+volatile: 다른 스레드가 쓴 최신 값을 보게 해 준다. 세 단계를 하나로 묶어 주지는 않는다.
+세 단계를 하나로 묶으려면: synchronized, 또는 AtomicInteger.incrementAndGet().`),
+        run_steps: runEv("겹치는 순서 재현", "두 스레드 A, B가 visits++의 세 단계를 이 순서로 겹쳐 실행하는 경우를 한 줄씩 그대로 재현한 결과.", `int visits = 0;
+int a = visits;      // A: 읽기 (0)
+int b = visits;      // B: 읽기 (0)
+visits = a + 1;      // A: 더해서 쓰기 (1)
+visits = b + 1;      // B: 더해서 쓰기 (1)
+System.out.println("두 번 방문했는데 visits = " + visits);`, "두 번 방문했는데 visits = 1"),
+        run_volatile: runEv("volatile을 붙인 결과", "visits에 volatile을 붙이고 같은 방법으로 돌려 본 결과.", raceLoop("visits = 0;", "visits++;", "visits"), "모자란 적이 있다: true", VVISITS),
+        run_fix: runEv("AtomicInteger로 고친 결과", "visits를 AtomicInteger로 바꾸고 incrementAndGet()으로 같은 방법으로 돌려 본 결과.", raceLoop("visits.set(0);", "visits.incrementAndGet();", "visits.get()"), "모자란 적이 있다: false", AVISITS),
+        lostone: ev("📌", "추리", "사라진 한 번", "조합 결과: visits++는 읽고, 더하고, 쓰는 세 단계다. 두 스레드가 둘 다 0을 읽은 뒤 각자 1을 쓰면, 두 번 방문했는데 1만 남는다.\n스레드 하나로 한 단정해의 테스트에는 끼어들 다른 스레드가 없었다. 그래서 20만이 정확히 나왔다.", `A 읽기(0) → B 읽기(0) → A 쓰기(1) → B 쓰기(1)
+→ 두 번 더했는데 결과는 1 (한 번 사라짐)`)
+      },
+      script: [
+        { say: "judge", t: "‘모자란 방문자 수 사건’의 재판을 시작합니다." },
+        { say: "ev", t: "서버 로그엔 방문이 20만 번인데, 화면의 방문자 수는 <b>18만, 15만…</b> 볼 때마다 다르게 모자라요!" },
+        { say: "wit", t: "방문자 수는 visits++ 한 줄이에요. 이보다 단순한 코드가 어디 있어요? 테스트에서도 정확히 20만이었어요." },
+        { gain: ["code", "run_test", "run_race", "spec_race", "run_steps", "run_volatile"], t: "법정 기록에 증거 6개가 들어왔다." },
+        { cross: "c2a", title: "증언 ① 한 줄이라 안전하다", who: "wit",
+          lines: [
+            { t: "방문할 때마다 visits++로 하나씩 올려요.",
+              press: [["wit", "더 줄일 수도 없는 코드죠."], ["me", "(한 줄인 건 맞다.)"]] },
+            { t: "visits++는 한 줄이라 한 번에 끝나요. 그러니 여러 스레드가 동시에 해도 하나도 안 빠져요.",
+              press: [["wit", "한 줄을 반만 실행할 수는 없잖아요."], ["me", "(정말 한 번에 끝날까?)"]] },
+            { t: "제 테스트에서도 20만 번 하니까 정확히 200000이었어요.",
+              press: [["wit", "한 번도 안 빠졌어요."], ["me", "(그 테스트에는 스레드가 몇 개였더라.)"]] }
+          ],
+          answer: { line: 1, ev: "run_race" },
+          alt: { line: 1, ev: "spec_race", say: [["me", "visits++는 읽기, 더하기, 쓰기 세 단계예요."], ["wit", "그래도 한 줄이잖아요! 제 테스트에선 정확했어요!"], ["me", "(여러 스레드로 돌린 결과를 보여 주자.)"]] },
+          hint: "두 스레드로 동시에 돌려 본 결과가 있다.",
+          win: [
+            ["me", "두 스레드로 10만 번씩 돌리면 <b>20만이 안 되는 때가 있어요</b>. 실행 결과는 ‘모자란 적이 있다: true’예요."],
+            ["witSweat", "네?! 한 줄인데 어떻게 빠져요? 그리고 제 테스트는 왜 정확했어요?!"],
+            ["judge", "변호인, 방문이 어떻게 사라지는지 밝혀 보세요."]
+          ] },
+        { combine: ["run_steps", "spec_race"], result: "lostone",
+          t: "한 줄짜리 visits++에서 방문이 사라졌다. 어떻게 사라졌을까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 두 스레드가 겹치는 순서를 재현한 결과에서 출발해 보자.",
+          got: "둘 다 0을 <b>읽고</b>, 둘 다 1을 <b>썼다</b>. 한 번이 사라졌다…!\n새 증거 <b>📌 사라진 한 번</b>을 얻었다." },
+        { cross: "c2b", title: "증언 ② volatile이면 해결", who: "witSweat",
+          lines: [
+            { t: "그럼 visits에 volatile을 붙일게요. 모든 스레드가 늘 최신 값을 보니까, 같은 값을 읽을 일이 없어요.",
+              press: [["wit", "volatile은 동시성 키워드잖아요."], ["me", "(최신 값을 보는 것과 세 단계가 한 번에 끝나는 건 같을까?)"]] },
+            { t: "synchronized는 느리다고 들었어요.",
+              press: [["wit", "줄 서서 기다리니까요."], ["me", "(정확한 게 먼저다.)"]] },
+            { t: "다음 이벤트부터는 정확한 숫자가 나올 거예요.",
+              press: [["wit", "키워드 하나면 되니까요."], ["me", "(그 전에 확인할 게 있다.)"]] }
+          ],
+          answer: { line: 0, ev: "run_volatile" },
+          alt: { line: 0, ev: "lostone", say: [["me", "최신 값을 읽어도, 읽고 쓰는 사이에 다른 스레드가 끼어들 수 있어요."], ["witSweat", "최신 값이면 겹칠 일이 없다니까요!"], ["me", "(volatile을 붙여 돌린 결과를 보여 주자.)"]] },
+          hint: "volatile을 붙여 돌린 결과가 있다.",
+          win: [
+            ["me", "volatile을 붙여도 <b>‘모자란 적이 있다: true’</b>예요. volatile은 최신 값을 보게 할 뿐, 읽기·더하기·쓰기를 하나로 묶어 주지 않아요."],
+            ["me", "둘 다 최신 값 0을 읽은 다음 둘 다 1을 쓰면, 똑같이 한 번이 사라져요."],
+            ["witSweat", "으아악─!!"]
+          ] },
+        { choice: "judge", t: "방문자 수는 어떻게 세야 합니까?",
+          options: [
+            { t: "visits에 volatile을 붙이고 visits++를 그대로 쓴다", fb: "volatile은 세 단계를 묶어 주지 않는다. 실행 결과도 여전히 모자랐다." },
+            { t: "AtomicInteger의 incrementAndGet()으로 센다", ok: true },
+            { t: "방문할 때마다 Thread.sleep(1)을 넣어 겹치지 않게 한다", fb: "느려질 뿐 겹치지 않는다는 보장은 없다." },
+            { t: "스레드마다 따로 센 뒤 마지막에 합친다고 하고, 지금 코드를 그대로 둔다", fb: "생각은 좋지만 코드를 그대로 두면 바뀌는 게 없다." }
+          ],
+          win: [
+            ["judge", "세 단계를 한 번에."],
+            ["me", "네. AtomicInteger는 읽고 더하고 쓰기를 한 번에 해요. 같은 방법으로 50번 돌려도 <b>‘모자란 적이 있다: false’</b>예요. synchronized로 묶어도 되고요."]
+          ] },
+        { gain: ["run_fix"], t: "AtomicInteger로 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 방문자 수가 모자란 원인이 <b>여러 스레드가 동시에 한 visits++</b>라고 판단합니다. 방문은 서버 로그대로 있었습니다!",
+        quote: "count++는 읽기, 더하기, 쓰기 세 단계라서 두 스레드가 사이에 끼어들면 한 번이 사라진다(경쟁 상태). 스레드 하나로 한 테스트에선 드러나지 않고, 여럿이 돌 때 가끔, 매번 다르게 드러난다. volatile은 최신 값을 보게 할 뿐 세 단계를 묶지 않는다. AtomicInteger나 synchronized를 쓴다.",
+        clues: [
+          "<code>visits++</code> = 읽기 → 더하기 → 쓰기 (세 단계)",
+          "스레드 하나로 한 테스트는 통과한다",
+          "<code>volatile</code>은 세 단계를 묶지 않는다",
+          "정답: <code>AtomicInteger.incrementAndGet()</code> 또는 <code>synchronized</code>"
+        ]
+      }
+    },
+
+    /* ---------------- 3화 ---------------- */
+    {
+      id: "c3", ep: "3화 · ConcurrentHashMap", title: "바꾸기만 하면 된다던 맵 사건",
+      blurb: "HashMap을 ConcurrentHashMap으로 바꿨더니 앱이 죽고, 살려 놨더니 주문 수가 또 모자란다.",
+      characters: { chef: ["👨‍🍳", "주방장 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "메뉴별 주문 수 코드", "여러 주문 스레드가 메뉴별 주문 수를 올리는 부분. HashMap에서 ConcurrentHashMap으로 이름만 바꿨다.", `Map<String, Integer> counts = new ConcurrentHashMap<>();
+counts.put("김밥", 0);
+counts.put("튀김", null);          // 품절 메뉴는 null로 표시 (예전 코드 그대로)
+
+void onOrder(String menu) {
+    Integer now = counts.get(menu);
+    counts.put(menu, now + 1);
+}`),
+        run_test: runEv("단정해의 테스트", "스레드 하나로 김밥 주문을 3번 넣어 본 결과.", `Map<String, Integer> counts = new ConcurrentHashMap<>();
+counts.put("김밥", 0);
+for (int i = 0; i < 3; i++) {
+    Integer now = counts.get("김밥");
+    counts.put("김밥", now + 1);
+}
+System.out.println(counts);`, "{김밥=3}"),
+        run_null: runEv("품절 표시를 넣은 결과", "예전 코드처럼 품절 메뉴 ‘튀김’을 null로 넣어 본 결과.", `Map<String, Integer> counts = new ConcurrentHashMap<>();
+try {
+    counts.put("튀김", null);
+} catch (Exception e) {
+    System.out.println(e.getClass().getSimpleName());
+}`, "NullPointerException"),
+        spec_chm: spec("ConcurrentHashMap", "ConcurrentHashMap 문서의 규칙 요약.", `키와 값에 null을 넣을 수 없다 (NullPointerException).
+  get이 null을 돌려주면 ‘키가 없다’는 뜻이어야 하기 때문이다.
+get, put 같은 메서드 하나하나는 여러 스레드가 동시에 불러도 안전하다.
+하지만 get으로 읽고 put으로 쓰는 것처럼 두 번에 나눈 동작은 그 사이에 다른 스레드가 끼어들 수 있다.
+한 번에 하려면: merge(k, 1, Integer::sum), compute.`),
+        run_getput: runEv("두 스레드로 돌린 결과", "두 스레드가 김밥 주문을 10만 번씩 get → put으로 올리기를 최대 50번 해 보고, 20만이 안 된 적이 있는지 찍은 결과.", raceLoop(`Map<String, Integer> counts = new ConcurrentHashMap<>();
+    counts.put("김밥", 0);`, `{ Integer now = counts.get("김밥"); counts.put("김밥", now + 1); }`, `counts.get("김밥")`), "모자란 적이 있다: true"),
+        run_fix: runEv("merge로 고친 결과", "merge(메뉴, 1, Integer::sum)으로 같은 방법으로 돌려 보고, 품절은 따로 Set에 담아 본 결과.", raceLoop(`Map<String, Integer> counts = new ConcurrentHashMap<>();`, `counts.merge("김밥", 1, Integer::sum);`, `counts.get("김밥")`) + `
+Set<String> soldOut = ConcurrentHashMap.newKeySet();
+soldOut.add("튀김");
+System.out.println("품절: " + soldOut);`, "모자란 적이 있다: false\n품절: [튀김]"),
+        piece: ev("📌", "추리", "한 조각씩만 안전한 맵", "조합 결과: ConcurrentHashMap은 get 한 번, put 한 번은 안전하게 해 준다. 하지만 ‘get으로 읽고 → 1을 더해 → put으로 쓰기’는 두 번의 호출이고, 그 사이는 지켜 주지 않는다.\n스레드 하나로 한 단정해의 테스트에는 끼어들 스레드가 없어서 통과했다. 2화의 visits++와 같은 모양의 경쟁 상태다.", `get (안전) → +1 → put (안전)
+      ↑ 이 사이에 다른 스레드가 끼어들 수 있다`)
+      },
+      script: [
+        { say: "judge", t: "‘바꾸기만 하면 된다던 맵 사건’의 재판을 시작합니다." },
+        { say: "chef", t: "주문이 몰리면 메뉴별 주문 수가 이상하대서 고쳤다는데, 고친 날 <b>앱이 켜지지도 않았어요</b>. 겨우 켰더니 김밥 주문 수가 또 <b>모자라요</b>!" },
+        { say: "wit", t: "HashMap을 ConcurrentHashMap으로 바꿨어요. 이름에 Concurrent가 들어가잖아요. 동시성은 이걸로 끝이에요." },
+        { gain: ["code", "run_test", "run_null", "spec_chm", "run_getput"], t: "법정 기록에 증거 5개가 들어왔다." },
+        { cross: "c3a", title: "증언 ① 이름만 바꾸면 된다", who: "wit",
+          lines: [
+            { t: "여러 스레드가 동시에 쓰니까 HashMap을 ConcurrentHashMap으로 바꿨어요.",
+              press: [["wit", "동시성 문제에는 Concurrent죠."], ["me", "(바꾼 건 좋다.)"]] },
+            { t: "사용법은 HashMap이랑 똑같아서, 나머지 코드는 한 글자도 안 고쳐도 돼요. 품절 표시도 예전처럼 그대로 쓰고요.",
+              press: [["wit", "둘 다 Map이잖아요."], ["me", "(예전 코드엔 null이 있었다.)"]] },
+            { t: "앱이 안 켜진 건 주방 와이파이가 끊겨서예요.",
+              press: [["wit", "주방은 전파가 약해요."], ["me", "(와이파이 탓은 마지막에.)"]] }
+          ],
+          answer: { line: 1, ev: "run_null" },
+          alt: { line: 1, ev: "spec_chm", say: [["me", "ConcurrentHashMap은 null 값을 넣을 수 없어요."], ["wit", "같은 Map인데 그럴 리가요!"], ["me", "(품절 표시를 넣어 본 결과를 보여 주자.)"]] },
+          hint: "예전 코드처럼 품절 메뉴를 넣어 본 결과가 있다.",
+          win: [
+            ["me", "품절 메뉴 튀김을 null로 넣으면 <b>NullPointerException</b>이에요. 앱이 켜지지 않은 이유예요. ConcurrentHashMap은 null을 받지 않아요."],
+            ["witSweat", "크윽…! 그건 품절을 따로 관리하면 되죠. 그래도 주문 수는 이제 안전해요. Concurrent니까요!"],
+            ["judge", "변호인, 주문 수가 또 모자란 이유를 밝혀 보세요."]
+          ] },
+        { combine: ["run_test", "spec_chm"], result: "piece",
+          t: "Concurrent 맵인데 주문 수가 모자란다. 무엇이 안전하지 않았을까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 주문 수를 올리는 코드가 맵을 몇 번 부르는지부터 보자.",
+          got: "get과 put은 <b>하나씩만</b> 안전, 그 <b>사이</b>는 지켜 주지 않는다…!\n새 증거 <b>📌 한 조각씩만 안전한 맵</b>을 얻었다." },
+        { cross: "c3b", title: "증언 ② Concurrent니까 안전하다", who: "witSweat",
+          lines: [
+            { t: "품절은 따로 Set으로 관리할게요.",
+              press: [["wit", "null은 이제 안 써요."], ["me", "(그건 맞다.)"]] },
+            { t: "제 테스트에서 김밥 주문 3번은 정확히 3이었어요.",
+              press: [["wit", "{김밥=3}."], ["me", "(스레드 하나였다.)"]] },
+            { t: "주문 수는 get으로 꺼내서 1 더하고 put으로 넣어요. ConcurrentHashMap이라 여러 스레드가 동시에 해도 안전해요.",
+              press: [["wit", "맵이 알아서 지켜 주잖아요."], ["me", "(어디까지 지켜 줄까?)"]] }
+          ],
+          answer: { line: 2, ev: "run_getput" },
+          alt: { line: 2, ev: "piece", say: [["me", "get과 put 사이에 다른 스레드가 끼어들 수 있어요."], ["witSweat", "Concurrent 맵인데 끼어든다고요? 말도 안 돼요!"], ["me", "(두 스레드로 돌린 결과를 보여 주자.)"]] },
+          hint: "두 스레드로 김밥 주문을 올려 본 결과가 있다.",
+          win: [
+            ["me", "두 스레드로 돌리면 <b>‘모자란 적이 있다: true’</b>예요. get과 put 사이에 다른 스레드가 끼어들어서, 2화의 visits++처럼 한 번씩 사라져요."],
+            ["me", "읽고 더하고 쓰기를 <b>merge</b> 한 번으로 해야 맵이 끝까지 지켜 줘요."],
+            ["witSweat", "으아악─!!"]
+          ] },
+        { choice: "judge", t: "메뉴별 주문 수는 어떻게 고쳐야 합니까?",
+          options: [
+            { t: "ConcurrentHashMap 대신 HashMap으로 되돌린다", fb: "HashMap은 동시에 쓰면 값이 사라지거나 구조가 깨질 수 있다. 더 나빠진다." },
+            { t: "get과 put 사이에 Thread.yield()를 넣어 순서를 양보한다", fb: "양보한다고 끼어들기가 없어지지 않는다. 오히려 더 자주 끼어든다." },
+            { t: "주문 수는 merge로 한 번에 올리고, 품절은 따로 Set으로 관리한다", ok: true },
+            { t: "품절을 null 대신 -1로 표시하고 get/put은 그대로 둔다", fb: "앱은 켜지지만 get/put 사이의 경쟁 상태는 그대로다." }
+          ],
+          win: [
+            ["judge", "맵이 지켜 주는 건 한 번의 호출까지."],
+            ["me", "네. merge로 고쳐 50번 돌려도 <b>‘모자란 적이 있다: false’</b>예요. 품절 메뉴는 따로 담고요."]
+          ] },
+        { gain: ["run_fix"], t: "merge로 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 앱이 죽은 원인이 <b>ConcurrentHashMap에 넣은 null</b>이고, 주문 수가 모자란 원인이 <b>get과 put으로 나눈 갱신</b>이라고 판단합니다. 주방 와이파이는 무죄!",
+        quote: "ConcurrentHashMap은 키와 값에 null을 받지 않으므로 HashMap에서 이름만 바꾸면 NullPointerException이 날 수 있다. get, put 같은 호출 하나하나는 안전하지만, get으로 읽고 put으로 쓰는 두 단계 사이는 지켜 주지 않아 경쟁 상태가 남는다. 갱신은 merge나 compute로 한 번에 한다.",
+        clues: [
+          "<code>ConcurrentHashMap</code>은 null 키·값 금지 → NullPointerException",
+          "호출 하나는 안전, <code>get</code> → <code>put</code> 사이는 안전하지 않다",
+          "스레드 하나로 한 테스트는 통과한다",
+          "정답: <code>merge(k, 1, Integer::sum)</code>, 품절은 따로 Set"
+        ]
+      }
+    },
+
+    /* ---------------- 4화 ---------------- */
+    {
+      id: "c4", ep: "4화 · 스레드의 예외", title: "아무도 듣지 못한 실패 사건",
+      blurb: "재고 정산이 실패했는데 알림도, 로그도 없었다. 다음 날 아침까지 아무도 몰랐다.",
+      characters: { ops: ["🛠️", "운영 담당자 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "재고 정산 코드", "재고 정산을 다른 스레드에 맡기고, 실패하면 main의 catch에서 알림을 보내려던 부분.", `try {
+    Thread job = new Thread(() -> settle(), "settle-1");
+    job.start();
+    job.join();
+    System.out.println("정산 완료");
+} catch (Exception e) {
+    sendAlert(e.getMessage());     // 실패하면 알림
+}
+
+// 다음 버전: ExecutorService로 바꿈
+executor.submit(() -> settle());`),
+        run_ok: runEv("단정해의 테스트", "정산이 성공하는 날로 돌려 본 결과.", `try {
+    Thread job = new Thread(() -> System.out.println("정산 중…"), "settle-1");
+    job.start();
+    job.join();
+    System.out.println("정산 완료");
+} catch (Exception e) {
+    System.out.println("알림: " + e.getMessage());
+}`, "정산 중…\n정산 완료"),
+        run_thread: runEv("정산이 실패한 날", "정산 스레드가 ‘재고 파일 없음’ 예외를 던지는 날로 돌려 본 결과 (화면 출력만).", `try {
+    Thread job = new Thread(() -> { throw new IllegalStateException("재고 파일 없음"); }, "settle-1");
+    job.start();
+    job.join();
+    System.out.println("정산 완료");
+} catch (Exception e) {
+    System.out.println("알림: " + e.getMessage());
+}`, "정산 완료"),
+        spec_exc: spec("스레드와 예외", "Thread·ExecutorService·Future 문서의 규칙 요약.", `예외는 그 예외가 난 스레드 안에서만 위로 올라간다. 다른 스레드의 try-catch는 잡지 못한다.
+스레드가 예외로 끝나면, 기본 처리기가 오류 출력(stderr)에 한 번 찍고 그 스레드만 끝난다.
+ExecutorService.submit: 작업의 예외를 Future 안에 담아 둔다. 어디에도 찍지 않는다.
+future.get()을 부를 때 ExecutionException으로 감싸서 던진다 (원인은 getCause()).`),
+        run_submit: runEv("submit으로 바꾼 결과", "같은 실패를 executor.submit으로 맡기고 잠시 기다려 본 결과 (화면 출력과 오류 출력 모두).", `ExecutorService executor = Executors.newSingleThreadExecutor();
+executor.submit(() -> { throw new IllegalStateException("재고 파일 없음"); });
+Thread.sleep(300);
+System.out.println("submit 뒤 0.3초: 아무 출력 없음");
+executor.shutdown();`, "submit 뒤 0.3초: 아무 출력 없음"),
+        run_fix: runEv("future.get()으로 확인한 결과", "submit이 돌려준 Future의 get()으로 결과를 확인하고, 실패하면 원인으로 알림을 보내 본 결과.", `ExecutorService executor = Executors.newSingleThreadExecutor();
+Future<?> f = executor.submit(() -> { throw new IllegalStateException("재고 파일 없음"); });
+try {
+    f.get();
+    System.out.println("정산 완료");
+} catch (ExecutionException e) {
+    System.out.println("알림: " + e.getCause().getMessage());
+}
+executor.shutdown();`, "알림: 재고 파일 없음"),
+        otherthread: ev("📌", "추리", "다른 스레드의 비명", "조합 결과: 예외는 settle-1 스레드 안에서 났고, 그 스레드 안에서만 위로 올라가다 끝났다. main의 try-catch는 다른 스레드의 예외를 잡지 못한다.\nmain은 join()으로 settle-1이 ‘끝나기’만 기다렸고, 실패로 끝났는지는 몰랐다. 그래서 ‘정산 완료’를 찍었다. 실패한 날로 테스트하지 않으면 드러나지 않는다.", `settle-1: 예외 → settle-1만 종료 (stderr에 한 번 찍힘)
+main: join() 끝 → “정산 완료” (catch는 실행 안 됨)`)
+      },
+      script: [
+        { say: "judge", t: "‘아무도 듣지 못한 실패 사건’의 재판을 시작합니다." },
+        { say: "ops", t: "어젯밤 재고 정산이 실패했는데, 화면엔 <b>‘정산 완료’</b>가 떴고 알림은 안 왔어요. ExecutorService로 바꾼 뒤로는 <b>로그 한 줄</b>도 안 남아요!" },
+        { say: "wit", t: "정산은 try-catch로 감쌌어요. 실패하면 catch에서 알림이 가요. 테스트도 했다고요." },
+        { gain: ["code", "run_ok", "run_thread", "spec_exc", "run_submit"], t: "법정 기록에 증거 5개가 들어왔다." },
+        { cross: "c4a", title: "증언 ① catch가 잡아 준다", who: "wit",
+          lines: [
+            { t: "정산 스레드에서 예외가 나면, 바깥 main의 try-catch가 잡아서 알림을 보내요.",
+              press: [["wit", "try 블록 안에서 start했으니까요."], ["me", "(예외가 난 곳은 어느 스레드일까?)"]] },
+            { t: "제 테스트에선 ‘정산 중…’, ‘정산 완료’가 잘 찍혔어요.",
+              press: [["wit", "깔끔했어요."], ["me", "(성공하는 날이었다.)"]] },
+            { t: "알림이 안 온 건 알림 서버가 느려서예요.",
+              press: [["wit", "알림 서버는 늘 느려요."], ["me", "(알림 서버 탓은 나중에.)"]] }
+          ],
+          answer: { line: 0, ev: "run_thread" },
+          alt: { line: 0, ev: "spec_exc", say: [["me", "예외는 그 예외가 난 스레드 안에서만 올라가요."], ["wit", "try 안에서 시작했으니 잡히죠!"], ["me", "(정산이 실패한 날로 돌린 결과를 보여 주자.)"]] },
+          hint: "정산이 실패한 날로 돌려 본 결과가 있다.",
+          win: [
+            ["me", "정산이 실패한 날로 돌려도 화면엔 <b>‘정산 완료’</b>만 찍히고, ‘알림’은 안 찍혀요. catch가 실행되지 않았어요."],
+            ["witSweat", "네?! try 안에서 시작한 스레드인데요? 예외는 어디로 갔어요?!"],
+            ["judge", "변호인, catch가 예외를 못 잡은 이유를 밝혀 보세요."]
+          ] },
+        { combine: ["run_thread", "spec_exc"], result: "otherthread",
+          t: "실패했는데 ‘정산 완료’가 찍혔다. 예외는 어디로 갔을까?\n이유를 밝혀 줄 증거 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 이유가 안 나온다. 실패한 날의 실행 결과에서 출발해 보자.",
+          got: "예외는 <b>settle-1 안에서만</b> 올라가다 끝났다, main은 <b>몰랐다</b>…!\n새 증거 <b>📌 다른 스레드의 비명</b>을 얻었다." },
+        { cross: "c4b", title: "증언 ② submit이면 다 보인다", who: "witSweat",
+          lines: [
+            { t: "그래서 다음 버전에선 ExecutorService로 바꿨어요. 요즘은 다 이렇게 해요.",
+              press: [["wit", "스레드를 직접 만들면 촌스럽대요."], ["me", "(바꾼 것 자체는 좋다.)"]] },
+            { t: "executor.submit으로 맡기면, 작업에서 예외가 났을 때 콘솔과 로그에 바로 찍혀요. 숨길 수가 없죠.",
+              press: [["wit", "프레임워크가 알아서 해 주잖아요."], ["me", "(submit이 예외를 어디에 둘까?)"]] },
+            { t: "로그가 안 남은 건 로그 파일이 꽉 차서예요.",
+              press: [["wit", "디스크가 작아요."], ["me", "(디스크 탓은 마지막에.)"]] }
+          ],
+          answer: { line: 1, ev: "run_submit" },
+          alt: { line: 1, ev: "spec_exc", say: [["me", "submit은 예외를 Future 안에 담아 두고, 어디에도 찍지 않아요."], ["witSweat", "예외가 났는데 안 찍힌다고요? 그럴 리가요!"], ["me", "(submit으로 바꿔 돌린 결과를 보여 주자.)"]] },
+          hint: "submit으로 바꿔 돌려 본 결과가 있다.",
+          win: [
+            ["me", "submit으로 바꾸면 <b>아무것도 안 찍혀요</b>. 화면 출력에도, 오류 출력에도요. 예외는 Future 안에 담겨서 누군가 꺼내 주길 기다려요."],
+            ["me", "submit이 돌려준 <b>Future의 get()</b>을 불러야 ExecutionException으로 실패를 알 수 있어요."],
+            ["witSweat", "으아악─!!"]
+          ] },
+        { choice: "judge", t: "정산 실패는 어떻게 알아내야 합니까?",
+          options: [
+            { t: "main의 try-catch를 더 바깥으로 넓혀 프로그램 전체를 감싼다", fb: "아무리 넓혀도 다른 스레드의 예외는 main의 catch에 오지 않는다." },
+            { t: "submit 대신 execute를 쓰고, 콘솔에 찍히면 사람이 보고 알림을 보낸다", fb: "execute는 예외를 stderr에 찍긴 하지만, 사람이 밤새 콘솔을 볼 수는 없다. 코드가 실패를 받아야 한다." },
+            { t: "작업 안에서 Exception을 모두 잡아 아무것도 하지 않는다", fb: "실패를 더 깊이 숨길 뿐이다." },
+            { t: "submit이 준 Future의 get()으로 실패를 받아 알림을 보낸다", ok: true }
+          ],
+          win: [
+            ["judge", "실패도 결과다. 받아서 확인한다."],
+            ["me", "네. future.get()으로 확인하면 ExecutionException의 원인으로 <b>‘알림: 재고 파일 없음’</b>이 찍혀요."]
+          ] },
+        { gain: ["run_fix"], t: "future.get()으로 고친 코드를 실제로 돌려 본 결과가 법정 기록에 들어왔다." },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 실패가 알려지지 않은 원인이 <b>다른 스레드의 예외를 main에서 잡으려 한 것</b>과 <b>꺼내지 않은 Future</b>라고 판단합니다. 알림 서버와 디스크는 무죄!",
+        quote: "예외는 난 스레드 안에서만 올라가므로 main의 try-catch는 다른 스레드의 예외를 잡지 못한다. join은 끝나기를 기다릴 뿐 성공했는지 알려 주지 않는다. ExecutorService.submit은 예외를 Future 안에 담아 두고 아무 데도 찍지 않으며, get()을 부를 때 ExecutionException으로 던진다. 실패한 날로 테스트하고, Future.get()으로 결과를 확인한다.",
+        clues: [
+          "다른 스레드의 예외는 main의 catch에 오지 않는다",
+          "<code>join()</code>은 끝나길 기다릴 뿐, 성공 여부는 모른다",
+          "<code>submit</code>은 예외를 Future에 담고 아무 데도 안 찍는다",
+          "정답: <code>future.get()</code> → ExecutionException의 <code>getCause()</code>"
+        ]
+      }
+    },
+
+    /* ---------------- 보스 ---------------- */
+    {
+      id: "cboss", ep: "보스 · 6챕터 총정리", title: "선착순 이벤트 대법정",
+      blurb: "오픈 이벤트 날, 화면은 멈추고 참여자 수는 모자라고 쿠폰 지급 실패는 아무도 몰랐다.",
+      boss: true, hard: true, trust: 3,
+      characters: { ceo: ["🏬", "쇼핑몰 대표 (원고)"] },
+      evidence: {
+        code: ev("📄", "코드", "이벤트 서버 코드", "오픈 이벤트 날 배포한 코드의 일부.", `// ① 참여 알림은 따로 돌린다
+Thread notifier = new Thread(() -> sendNotice(user), "notifier");
+notifier.run();
+
+// ② 참여자 수
+static int joined = 0;
+void onJoin() { joined++; }
+
+// ③ 쿠폰 지급은 작업 큐에 맡긴다
+executor.submit(() -> giveCoupon(user));`),
+        run_notify: runEv("① 알림 실행 결과", "①을 그대로 돌려 본 결과.", `Thread notifier = new Thread(() -> sendNotice("민지"), "notifier");
+notifier.run();`, "알림 보내는 스레드: main", BOSS),
+        run_joined: runEv("② 참여자 수 실행 결과", "두 스레드가 10만 명씩 동시에 참여시키기를 최대 50번 해 보고, 20만이 안 된 적이 있는지 찍은 결과.", raceLoop("joined = 0;", "joined++;", "joined"), "모자란 적이 있다: true", BOSS),
+        run_coupon: runEv("③ 쿠폰 지급 실행 결과", "쿠폰 재고가 바닥나 예외가 나는 경우로 ③을 돌려 본 결과 (화면 출력과 오류 출력 모두).", `ExecutorService executor = Executors.newSingleThreadExecutor();
+executor.submit(() -> { throw new IllegalStateException("쿠폰 재고 없음"); });
+Thread.sleep(300);
+System.out.println("지급 요청 끝: 아무 출력 없음");
+executor.shutdown();`, "지급 요청 끝: 아무 출력 없음"),
+        spec_six: spec("6챕터에서 본 규칙", "1~4화 판결 요약.", `run()은 보통 호출. 새 스레드는 start(), 결과가 필요하면 join() (1화)
+count++는 세 단계. volatile로는 안 되고 AtomicInteger·synchronized (2화)
+ConcurrentHashMap은 호출 하나만 안전. 갱신은 merge (3화)
+다른 스레드의 예외는 catch에 안 온다. submit의 예외는 Future.get()으로 (4화)`),
+        run_fixed: runEv("고친 이벤트 서버 실행 결과", "판결에서 고른 방식으로 고쳐서 돌려 본 결과.", `Thread notifier = new Thread(() -> sendNotice("민지"), "notifier");
+notifier.start();
+notifier.join();
+AtomicInteger count = new AtomicInteger();
+${raceLoop("count.set(0);", "count.incrementAndGet();", "count.get()")}
+ExecutorService executor = Executors.newSingleThreadExecutor();
+Future<?> f = executor.submit(() -> { throw new IllegalStateException("쿠폰 재고 없음"); });
+try { f.get(); } catch (ExecutionException e) { System.out.println("알림: " + e.getCause().getMessage()); }
+executor.shutdown();`, "알림 보내는 스레드: notifier\n모자란 적이 있다: false\n알림: 쿠폰 재고 없음", BOSS),
+        sometimes: ev("📌", "추리", "혼자일 땐 안 보이는 버그", "조합 결과: 참여자 수는 여러 스레드가 동시에 더할 때만 ‘가끔’ 모자라고, 쿠폰 지급 실패는 다른 스레드의 Future 안에 조용히 담겨 있었다. 둘 다 스레드 하나로, 성공하는 날만 테스트하면 절대 보이지 않는다.\n동시성 코드는 ‘여럿이 동시에’, ‘실패하는 날’을 일부러 만들어 확인해야 한다.", `② 여럿이 동시에 → 가끔 모자람 (혼자선 정확)
+③ 다른 스레드에서 실패 → 아무 출력 없음 (성공하는 날엔 멀쩡)`)
+      },
+      script: [
+        { say: "judge", t: "정숙! <b>선착순 이벤트 대법정</b>을 개정합니다. 신뢰도는 <b>3</b>, 첫 실수에는 힌트가 없습니다." },
+        { say: "ceo", t: "오픈 이벤트 날, 참여 버튼을 누르면 <b>화면이 멈췄고</b>, 참여자 수는 <b>실제보다 적었고</b>, 쿠폰이 안 나간 손님이 수백 명인데 <b>아무도 몰랐어요</b>!" },
+        { say: "wit", t: "이벤트 서버는 제가 리뷰했어요. 6챕터 사건들 다 보고, 알림은 스레드로, 쿠폰은 작업 큐로 나눴다고요." },
+        { gain: ["code", "run_notify", "run_joined", "run_coupon", "spec_six"], t: "법정 기록에 증거 5개가 들어왔다. 6챕터 1~4화를 떠올리며 골라야 한다." },
+        { cross: "cb1", title: "증언 ① 알림은 따로 돈다", who: "wit",
+          lines: [
+            { t: "참여하면 알림을 보내야 하는데, 이게 좀 오래 걸려요.",
+              press: [["wit", "외부 서비스를 부르거든요."], ["me", "(오래 걸리는 일을 누가 하느냐가 문제다.)"]] },
+            { t: "그래서 notifier라는 이름으로 스레드를 따로 만들었어요.",
+              press: [["wit", "이름까지 붙였어요."], ["me", "(만든 것과 시작한 것은 다르다.)"]] },
+            { t: "run()으로 시작했으니 알림은 notifier 스레드에서 따로 돌고, 참여 화면은 안 멈춰요.",
+              press: [["wit", "스레드가 달리니까요."], ["me", "(1화에서 무슨 일이 있었더라.)"]] }
+          ],
+          answer: { line: 2, ev: "run_notify" },
+          hint: "①을 돌려 본 결과가 있다. 누가 알림을 보냈는지 보자. 1화를 떠올려 보자.",
+          win: [
+            ["me", "①을 돌리면 <b>‘알림 보내는 스레드: main’</b>이에요. run()은 새 스레드를 만들지 않아서, 화면 스레드가 직접 알림을 보내느라 멈췄어요. 1화 그대로예요."],
+            ["witSweat", "크윽…! 알림은 그렇다 쳐도, 참여자 수는 joined++ 한 줄이에요. 틀릴 수가 없어요!"],
+            ["judge", "증인, 참여자 수에 대해 증언하세요."]
+          ] },
+        { cross: "cb2", title: "증언 ② 한 줄이라 정확하다", who: "witSweat",
+          lines: [
+            { t: "참여자 수는 joined++ 한 줄이라, 동시에 몇 명이 눌러도 정확해요.",
+              press: [["wit", "한 줄은 한 번에 끝나잖아요."], ["me", "(2화에서 본 그 한 줄이다.)"]] },
+            { t: "어제 혼자 버튼을 100번 눌러 봤는데 정확히 100이었어요.",
+              press: [["wit", "손가락이 아팠어요."], ["me", "(혼자였다.)"]] },
+            { t: "숫자가 모자란 건 손님들이 버튼을 살살 눌러서예요.",
+              press: [["wit", "눌린 줄 알았는데 안 눌린 거죠."], ["me", "(정말 그럴까.)"]] }
+          ],
+          answer: { line: 0, ev: "run_joined" },
+          hint: "②를 돌려 본 결과가 있다. 2화를 떠올려 보자.",
+          win: [
+            ["me", "두 스레드로 돌리면 <b>‘모자란 적이 있다: true’</b>예요. joined++는 읽기·더하기·쓰기 세 단계라서 동시에 하면 사라져요. 2화 그대로예요."],
+            ["witSweat", "크윽…! 그, 그래도 쿠폰은 작업 큐에 맡겼으니까 실패하면 로그에 다 찍혀요!"],
+            ["judge", "…증인, 쿠폰 지급에 대해 증언하세요."]
+          ] },
+        { cross: "cb3", title: "증언 ③ 실패하면 로그에 남는다", who: "witSweat",
+          lines: [
+            { t: "쿠폰 지급은 executor.submit으로 작업 큐에 맡겨요.",
+              press: [["wit", "요즘 방식이죠."], ["me", "(4화에서 본 그 submit이다.)"]] },
+            { t: "쿠폰 재고가 바닥나서 지급에 실패하면, 예외가 로그에 바로 찍혀서 운영팀이 알아요.",
+              press: [["wit", "예외는 숨길 수 없으니까요."], ["me", "(submit은 예외를 어디에 둘까.)"]] },
+            { t: "어제 로그엔 실패가 하나도 없었으니, 쿠폰은 다 나갔어요.",
+              press: [["wit", "로그는 거짓말 안 해요."], ["me", "(찍히지 않은 것과 없었던 것은 다르다.)"]] }
+          ],
+          answer: { line: 1, ev: "run_coupon" },
+          hint: "③을 돌려 본 결과가 있다. 4화를 떠올려 보자.",
+          win: [
+            ["me", "쿠폰 재고가 바닥난 경우로 ③을 돌려도 <b>아무것도 안 찍혀요</b>. submit은 예외를 Future 안에 담아 둘 뿐이에요. 4화 그대로예요."],
+            ["witSweat", "으아아아악─!!!"],
+            ["wit", "…전부 인정합니다. run()으로 시작했고, joined++를 여럿이 했고, submit의 실패를 꺼내 보지 않았어요."],
+            ["judge", "증인의 자백을 기록합니다. 변호인, 고친 코드를 고르세요."]
+          ] },
+        { choice: "judge", t: "다음 중 올바르게 고친 코드는 어느 것입니까?",
+          options: [
+            { code: true, t: `notifier.start();
+static volatile int joined;  void onJoin() { joined++; }
+Future<?> f = executor.submit(() -> giveCoupon(user));
+try { f.get(); } catch (ExecutionException e) { alert(e.getCause()); }`, fb: "참여자 수가 volatile + joined++다. volatile은 세 단계를 묶지 않아서 여전히 모자란다." },
+            { code: true, ok: true, t: `notifier.start();
+static AtomicInteger joined;  void onJoin() { joined.incrementAndGet(); }
+Future<?> f = executor.submit(() -> giveCoupon(user));
+try { f.get(); } catch (ExecutionException e) { alert(e.getCause()); }` },
+            { code: true, t: `notifier.run();
+static AtomicInteger joined;  void onJoin() { joined.incrementAndGet(); }
+Future<?> f = executor.submit(() -> giveCoupon(user));
+try { f.get(); } catch (ExecutionException e) { alert(e.getCause()); }`, fb: "알림이 그대로 run()이다. 화면 스레드가 직접 알림을 보내느라 멈춘다." },
+            { code: true, t: `notifier.start();
+static AtomicInteger joined;  void onJoin() { joined.incrementAndGet(); }
+executor.submit(() -> giveCoupon(user));
+// 실패하면 로그에 찍힐 것`, fb: "쿠폰 지급이 그대로다. submit의 실패는 아무 데도 찍히지 않는다." }
+          ],
+          win: [
+            ["judge", "맡길 땐 start, 셀 땐 Atomic, 맡긴 일의 결과는 get."],
+            ["me", "네. 고친 코드를 실제로 돌려서 확인해 둘게요."]
+          ] },
+        { gain: ["run_fixed"], t: "고친 이벤트 서버를 실제로 돌려 본 결과가 법정 기록에 들어왔다. 알림은 notifier가 보내고, 참여자 수는 모자라지 않고, 쿠폰 실패는 알림으로 온다." },
+        { combine: ["run_joined", "run_coupon"], result: "sometimes",
+          t: "판결 전에 하나만 정리하자. 왜 이 버그들은 리허설 때 안 보였을까?\n혼자서, 성공하는 날엔 안 보이는 실행 결과 두 개를 골라 조합해 보자.",
+          wrong: "그 둘로는 정리가 안 된다.",
+          got: "<b>여럿이 동시에</b>, <b>실패하는 날</b>에만 보인다…!\n새 증거 <b>📌 혼자일 땐 안 보이는 버그</b>를 얻었다." },
+        { choice: "judge", t: "마지막 질문입니다. 이번 재판에서 얻을 교훈은 무엇입니까?",
+          options: [
+            { t: "스레드는 위험하니 서버는 스레드 하나로만 돌린다", fb: "손님이 몰리는 이벤트를 스레드 하나로 받을 수는 없다. 안전하게 나누는 법을 알면 된다." },
+            { t: "공유 값은 한 번에 바꾸고, 맡긴 일은 끝과 실패를 받아서 확인한다", ok: true },
+            { t: "문제가 생기면 Thread.sleep을 넣어 순서를 맞춘다", fb: "시간으로 맞춘 순서는 서버가 바쁜 날 깨진다." },
+            { t: "공유 변수에는 전부 volatile을 붙여 둔다", fb: "volatile은 최신 값을 보게 할 뿐, joined++ 같은 세 단계를 묶지 않는다." }
+          ],
+          win: [
+            ["judge", "…좋습니다."],
+            ["me", "새 스레드는 start로, 공유 숫자는 Atomic이나 merge로, 맡긴 일은 join이나 Future.get()으로 확인해요. 그리고 리허설은 여럿이 동시에, 실패하는 날로 해야 해요."]
+          ] },
+        { verdict: true }
+      ],
+      verdict: {
+        say: "본 법정은 이벤트 날의 사고가 <b>동시성 함정 세 가지</b>가 겹친 것이라고 판단합니다. 고친 코드로 이벤트를 다시 열도록 선고합니다. 이상, 폐정!",
+        quote: "Thread.run()은 새 스레드를 만들지 않으므로 오래 걸리는 일은 start()로 맡긴다. joined++는 세 단계라 여러 스레드가 동시에 하면 값이 사라지므로 AtomicInteger나 synchronized를 쓴다. submit한 작업의 실패는 Future 안에 담길 뿐 찍히지 않으므로 get()으로 받아 확인한다. 동시성 버그는 혼자서, 성공하는 날엔 보이지 않으니 여럿이 동시에, 실패하는 경우로 테스트한다.",
+        clues: [
+          "<code>run()</code>은 보통 호출 → <code>start()</code> + <code>join()</code> (1화)",
+          "<code>joined++</code>는 세 단계 → <code>AtomicInteger</code> (2화)",
+          "<code>get</code> → <code>put</code> 사이는 안전하지 않다 → <code>merge</code> (3화)",
+          "<code>submit</code>의 실패는 <code>Future.get()</code>으로 (4화)",
+          "여럿이 동시에, 실패하는 날로 테스트한다"
+        ]
+      }
+    }
+  ]
+};

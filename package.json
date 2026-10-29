@@ -7,9 +7,9 @@
     "build": "node tools/build-packs.js",
     "syntax": "node --check sw.js && node --check js/core.js && node --check js/ads.js && node --check js/ui.js && node --check js/validate.js && node --check tools/validate.js && node --check tools/autoplay.js && node --check tools/verify-run.js && node --check tools/build-packs.js",
     "built": "node tools/build-packs.js --check",
-    "validate": "node tools/validate.js packs/java-basics.json packs/java-collections.json packs/java-objects.json packs/_test/ramen-sample.json",
-    "autoplay": "node tools/autoplay.js packs/java-basics.json packs/java-collections.json packs/java-objects.json packs/_test/ramen-sample.json",
-    "verify": "node tools/verify-run.js packs/java-basics.json packs/java-collections.json packs/java-objects.json",
+    "validate": "node tools/validate.js packs/java-basics.json packs/java-collections.json packs/java-objects.json packs/java-streams.json packs/java-numbers.json packs/java-concurrency.json packs/_test/ramen-sample.json",
+    "autoplay": "node tools/autoplay.js packs/java-basics.json packs/java-collections.json packs/java-objects.json packs/java-streams.json packs/java-numbers.json packs/java-concurrency.json packs/_test/ramen-sample.json",
+    "verify": "node tools/verify-run.js packs/java-basics.json packs/java-collections.json packs/java-objects.json packs/java-streams.json packs/java-numbers.json packs/java-concurrency.json",
     "check": "npm run syntax && npm run built && npm run validate && npm run autoplay && npm run verify"
   }
 }
