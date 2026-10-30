@@ -33,7 +33,7 @@
 
 ### 증거에 붙일 수 있는 것 (선택)
 - `source: { doc, quote }`: 근거 인용. 팩의 `sources[doc]`에 `quote`가 **글자 그대로** 있어야 한다 (AI 초안 증거는 필수가 될 예정)
-- `run: { lang, snippet, expected }`: 실제로 실행해서 검증할 코드와 기대 출력 (1단계의 `packtool verify`가 쓴다)
+- `run: { lang, snippet, expected }`: 실제로 실행해서 검증할 코드와 기대 출력 (`tools/verify-run.js`가 쓴다. lang은 java 또는 python)
 
 ## 단계 (`script`)
 

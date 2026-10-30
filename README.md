@@ -23,11 +23,14 @@ packs/java-objects.json      Java 3챕터 객체·예외 법정 (사건 4개 + �
 packs/java-streams.json      Java 4챕터 스트림 법정 (사건 4개 + 보스)
 packs/java-numbers.json      Java 5챕터 숫자·날짜 법정 (사건 4개 + 보스)
 packs/java-concurrency.json  Java 6챕터 동시성 법정 (사건 4개 + 보스. 증거는 매번 같은 출력이 나오게 짬)
+packs/python-basics.json     Python 1챕터 기초 법정 (사건 4개 + 보스)
+packs/python-collections.json  Python 2챕터 컬렉션 법정 (사건 4개 + 보스)
+packs/python-functions.json  Python 3챕터 함수·객체 법정 (사건 4개 + 보스)
 packs/_test/              엔진 회귀 테스트용 팩 (#dev에서만 보임)
 tools/build-packs.js      원고 → JSON (--check: 빌드 결과가 커밋된 파일과 같은지)
 tools/validate.js         node tools/validate.js <팩>
 tools/autoplay.js         node tools/autoplay.js <팩>  — 화면 없이 사건을 끝까지 풀어 본다
-tools/verify-run.js       증거 속 Java 코드를 JDK로 실제 실행해 출력이 사건과 같은지 확인
+tools/verify-run.js       증거 속 코드를 JDK·Python으로 실제 실행해 출력이 사건과 같은지 확인
 docs/case-format.md       사건팩 형식 (code-court/v1)
 ```
 
@@ -35,7 +38,7 @@ docs/case-format.md       사건팩 형식 (code-court/v1)
 
 ```bash
 npm run build          # 원고(packs-src) → 팩 JSON
-npm run check          # 문법 + 빌드 최신 여부 + 팩 검증 + 자동 플레이 + 실행 검증 (JDK 21 필요)
+npm run check          # 문법 + 빌드 최신 여부 + 팩 검증 + 자동 플레이 + 실행 검증 (JDK 21, Python 3.14 필요)
 python -m http.server 5173   # 그다음 http://127.0.0.1:5173 (개발용 팩은 #dev)
 ```
 

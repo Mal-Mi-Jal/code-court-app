@@ -15,6 +15,12 @@ function runEv(name, desc, snippet, expected, classes) {
   return { ic: "▶️", k: "실행 결과", name, desc, code: shown, run };
 }
 
+/** Python 실행 결과 증거: code가 파일 전체이고, 카드에 코드와 실제 출력을 함께 보여 준다 */
+function pyEv(name, desc, code, expected) {
+  const shown = code.trim() + "\n\n# 실행 결과\n" + expected.split("\n").map(l => "# " + l).join("\n");
+  return { ic: "▶️", k: "실행 결과", name, desc, code: shown, run: { lang: "python", snippet: code.trim(), expected } };
+}
+
 const spec = (name, desc, code) => ev("📘", "명세 요약", name, desc, code);
 
 const COMMON = {
@@ -24,4 +30,4 @@ const COMMON = {
   witSweat: ["😰", "단정해 (코드 리뷰어)"]
 };
 
-module.exports = { ev, runEv, spec, COMMON };
+module.exports = { ev, runEv, pyEv, spec, COMMON };

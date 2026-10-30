@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 사용법: node tools/verify-run.js packs/java-basics.json [다른 팩 …]
 //
-// 증거에 붙은 run: { lang: "java", snippet, expected } 를 JDK의 단일 파일 실행(java Main.java)으로 실제로 돌린다.
+// 증거에 붙은 run: { lang, snippet, expected } 를 실제로 돌린다. java = JDK 단일 파일 실행(java Main.java), python = python main.py
 // 확인하는 것
 //   1) 실제 출력 == expected  (사건 속 "실행 결과"가 지어낸 게 아니다)
 //   2) 플레이어가 보는 증거 카드(code)에 expected의 각 줄이 그대로 적혀 있다
@@ -23,6 +23,16 @@ function runJava(snippet, classes) {
   return { stdout: (r.stdout || "").replace(/\r/g, "").trimEnd(), stderr: (r.stderr || "").trim(), status: r.status };
 }
 
+// Python: snippet이 파일 전체다. 버전마다 예외 메시지가 달라서 CI는 3.14로 고정한다
+function runPython(snippet) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "court-verify-"));
+  const file = path.join(dir, "main.py");
+  fs.writeFileSync(file, snippet + "\n", "utf8");
+  const r = spawnSync("python", ["-X", "utf8", file], { encoding: "utf8", timeout: 30000 });
+  fs.rmSync(dir, { recursive: true, force: true });
+  return { stdout: (r.stdout || "").replace(/\r/g, "").trimEnd(), stderr: (r.stderr || "").trim(), status: r.status };
+}
+
 const files = process.argv.slice(2);
 if (files.length === 0) { console.error("사용법: node tools/verify-run.js <팩.json> [...]"); process.exit(2); }
 
@@ -35,8 +45,8 @@ for (const f of files) {
       if (!e.run) continue;
       count++;
       const where = `${c.id}.${id}`;
-      if (e.run.lang !== "java") { console.log(`  ✗ ${where}: 지원하지 않는 언어 '${e.run.lang}'`); failed = true; continue; }
-      const r = runJava(e.run.snippet, e.run.classes);
+      if (e.run.lang !== "java" && e.run.lang !== "python") { console.log(`  ✗ ${where}: 지원하지 않는 언어 '${e.run.lang}'`); failed = true; continue; }
+      const r = e.run.lang === "python" ? runPython(e.run.snippet) : runJava(e.run.snippet, e.run.classes);
       const expected = String(e.run.expected).replace(/\r/g, "").trimEnd();
       if (r.status !== 0 && !e.run.expectFail) {
         console.log(`  ✗ ${where}: 실행 실패 (종료 코드 ${r.status})\n${r.stderr.split("\n").slice(0, 6).map(l => "      " + l).join("\n")}`);
