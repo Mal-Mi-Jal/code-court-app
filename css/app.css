@@ -135,6 +135,15 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 /* case menu */
 .menu { display: grid; gap: 14px; }
 .menu .lead { margin: 0; color: var(--ink-dim); font-size: .9rem; max-width: 60ch; }
+.tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border-bottom: 1px solid var(--line); }
+.tab {
+  background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px;
+  min-height: 56px; padding: 8px 12px; text-align: left;
+  font-family: var(--f-shout); font-size: 1.3rem; line-height: 1.25; color: var(--ink-dim);
+}
+.tab small { display: block; font-family: var(--f-body); font-size: .75rem; font-weight: 400; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--brass); border-bottom-color: var(--brass); background: linear-gradient(0deg, rgb(217 164 65 / .08), transparent 70%); }
 .cases { display: grid; gap: 10px; }
 .case {
   text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 6px;

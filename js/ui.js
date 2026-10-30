@@ -11,6 +11,9 @@
   let S = null;          // 지금 사건의 진행 상태
   let P = {};            // 지금 사건의 등장인물
   let screen = "home";
+  let lang = null;       // 홈에서 고른 언어 탭
+  const LANG_KEY = "court:lang";
+  const langOf = p => p.test ? "개발용" : (p.language || "기타");
 
   /* ---------- 저장 (기기 안에만) ---------- */
   function store(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
@@ -36,9 +39,41 @@
     document.body.classList.remove("boss-mode");
     showMenuChrome("코드 법정", "코드 법정", false);
     $("lead").textContent = "증언에서 모순을 찾아 증거를 제시하세요. 코드가 정말 그렇게 동작하는지, 반례와 실행 결과로 반박하는 재판이에요.";
+    const visible = packs.filter(p => DEV || !p.test);
+    const langs = [...new Set(visible.map(langOf))];
+    if (!langs.includes(lang)) lang = fetchKey(LANG_KEY);
+    if (!langs.includes(lang)) lang = langs[0];
+    drawTabs(visible, langs);
+    drawCourses(visible);
+  }
+
+  /* 언어 탭: 고른 언어는 기기에 기억해 둔다 */
+  function drawTabs(visible, langs) {
+    const tabs = $("tabs"); tabs.innerHTML = ""; tabs.hidden = !langs.length;
+    langs.forEach((name, k) => {
+      const list = visible.filter(p => langOf(p) === name);
+      const open = list.filter(p => !p.soon).length;
+      const b = document.createElement("button");
+      b.className = "tab"; b.type = "button"; b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", String(name === lang));
+      b.setAttribute("aria-controls", "cases");
+      b.tabIndex = name === lang ? 0 : -1;
+      b.innerHTML = `${esc(name)}<small>${open ? `챕터 ${open}개` : "준비 중"}</small>`;
+      const pick = () => { lang = name; store(LANG_KEY, name); drawTabs(visible, langs); drawCourses(visible); tabs.children[k].focus(); };
+      b.addEventListener("click", pick);
+      b.addEventListener("keydown", e => {
+        const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+        if (d) { e.preventDefault(); tabs.children[(k + d + langs.length) % langs.length].click(); }
+      });
+      tabs.appendChild(b);
+    });
+  }
+
+  function drawCourses(visible) {
     const box = $("cases"); box.innerHTML = "";
+    box.setAttribute("role", "tabpanel");
     // 챕터는 배우는 순서다. 번호순으로 놓고, 번호와 주제를 배지로 크게 보여 준다
-    packs.filter(p => DEV || !p.test)
+    visible.filter(p => langOf(p) === lang)
       .sort((a, b) => (a.chapter || 99) - (b.chapter || 99))
       .forEach(p => {
         const solved = Object.keys(fetchKey(`court:${p.id}:solved`) || {}).length;
@@ -69,6 +104,7 @@
     screen = "pack"; C = null;
     document.body.classList.remove("boss-mode");
     showMenuChrome(pack.title, pack.title, true);
+    $("tabs").hidden = true; $("cases").removeAttribute("role");
     $("lead").textContent = pack.lead || "증언에서 모순을 찾아 증거를 제시하세요.";
     const solved = fetchKey(solvedKey(pack)) || {};
     const box = $("cases"); box.innerHTML = "";

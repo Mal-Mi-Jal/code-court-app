@@ -4,15 +4,15 @@
  * 인터넷이 끊기면 캐시에 있는 파일로 연다. 한 번 열어 본 코스는 오프라인에서도 플레이할 수 있다.
  * 파일 목록이 바뀌면 VERSION을 올린다 (옛 캐시는 activate에서 지운다).
  */
-const VERSION = "court-v9";
+const VERSION = "court-v10";
 const SHELL = [
   "./",
   "index.html",
   "manifest.webmanifest",
-  "css/app.css?v=3",
-  "js/core.js?v=3",
-  "js/ads.js?v=3",
-  "js/ui.js?v=3",
+  "css/app.css?v=4",
+  "js/core.js?v=4",
+  "js/ads.js?v=4",
+  "js/ui.js?v=4",
   "packs/index.json",
   "packs/java-basics.json",
   "packs/java-collections.json",
