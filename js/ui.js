@@ -18,6 +18,10 @@
   let lang = null;       // 홈에서 고른 언어 탭
   const LANG_KEY = "court:lang";
   const FEEDBACK_URL = "https://forms.gle/Ym5zNLmMVWrHjkL76";   // 의견 남기기 (구글 폼, 익명)
+  // 익명 이벤트 수 세기 (GoatCounter). 스크립트가 막혀 있거나 아직 안 왔으면 아무 일도 안 한다
+  function track(path, title) {
+    try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path, title, event: true }); } catch (e) {}
+  }
   const langOf = p => p.test ? "개발용" : (p.language || "기타");
 
   /* ---------- 저장 (기기 안에만) ---------- */
@@ -150,6 +154,7 @@
     $("ep").textContent = c.ep; $("caseTitle").textContent = c.title;
     lastSpeaker = null;
     Sound.gavel(c.boss ? 3 : 1);
+    track(`start/${pack.id}/${c.id}`, `사건 시작: ${pack.title} · ${c.title}`);
     render();
   }
 
@@ -415,6 +420,7 @@
   function renderVerdict() {
     const v = C.verdict;
     const solved = fetchKey(solvedKey(pack)) || {};
+    if (!solved[C.id]) track(`solve/${pack.id}/${C.id}`, `사건 해결: ${pack.title} · ${C.title}`);   // 처음 풀었을 때만
     solved[C.id] = true; store(solvedKey(pack), solved);
     Sound.gavel(3); setTimeout(() => Sound.solve(), 700);
     setSpeaker("judge"); setTag("");
