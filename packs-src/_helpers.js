@@ -30,4 +30,12 @@ const COMMON = {
   witSweat: ["😰", "단정해 (코드 리뷰어)"]
 };
 
-module.exports = { ev, runEv, pyEv, spec, COMMON };
+// Python 코스의 증인은 따로 둔다. Java 코스를 몰라도 이해되게, ‘상식대로라면 이렇겠죠’를 말하는 사람이다
+const PY_COMMON = {
+  judge: ["⚖️", "재판장"],
+  me: ["🧑‍💻", "나 (변호인)"],
+  wit: ["😎", "장담해 (Python 개발자)"],
+  witSweat: ["😰", "장담해 (Python 개발자)"]
+};
+
+module.exports = { ev, runEv, pyEv, spec, COMMON, PY_COMMON };

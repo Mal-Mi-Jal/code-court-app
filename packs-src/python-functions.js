@@ -3,7 +3,7 @@
 // 실행 결과 증거(run)는 tools/verify-run.js가 Python으로 실제로 돌려서 확인한다.
 // 예외 메시지는 Python 버전마다 달라서, 예외는 이름만 찍는다.
 // 힌트: 챕터 3이라 조합 안내는 목표만, 추궁 대사는 짧은 의심만 남긴다.
-const { ev, pyEv, spec, COMMON } = require("./_helpers");
+const { ev, pyEv, spec, PY_COMMON } = require("./_helpers");
 
 module.exports = {
   format: "code-court/v1",
@@ -12,7 +12,7 @@ module.exports = {
   language: "Python",
   blurb: "가변 기본 인자, 늦게 묶이는 클로저, 클래스 변수, __eq__와 dataclass. 언제 만들어지고 누구 것인지 헷갈리는 코드를 반박해요.",
   lead: "Python 3챕터는 함수와 객체예요. 이번 함정은 ‘그 값이 언제 만들어지고, 누구의 것인가’에서 나옵니다. 조합할 증거는 이제 직접 찾아야 해요. 실행 결과는 모두 Python 3.14로 실제로 돌린 값이에요.",
-  commonCharacters: COMMON,
+  commonCharacters: PY_COMMON,
   cases: [
     /* ---------------- 1화 ---------------- */
     {
@@ -23,7 +23,7 @@ module.exports = {
         code: ev("📄", "코드", "장바구니 코드", "상품을 담는 함수. 장바구니를 안 주면 새 장바구니로 시작하려던 코드.", `def add(item, cart=[]):
     cart.append(item)
     return cart`),
-        run_test: pyEv("단정해의 테스트", "장바구니를 직접 넘겨 담아 본 결과.", `def add(item, cart=[]):
+        run_test: pyEv("장담해의 테스트", "장바구니를 직접 넘겨 담아 본 결과.", `def add(item, cart=[]):
     cart.append(item)
     return cart
 
@@ -61,7 +61,7 @@ except Exception as e:
 
 print(add("김밥"))
 print(add("라면"))`, "['김밥']\n['라면']"),
-        once: ev("📌", "추리", "def 때 한 번 만들어진 리스트", "조합 결과: cart=[]의 []는 호출할 때마다 생기지 않는다. def가 실행될 때 한 번 만들어져 함수에 붙어 있고, 호출마다 그 리스트를 함께 쓴다.\n장바구니를 직접 넘긴 단정해의 테스트는 기본값을 한 번도 쓰지 않아서 통과했다.", `def add(item, cart=[]) → [] 한 번 생성, 함수에 붙음
+        once: ev("📌", "추리", "def 때 한 번 만들어진 리스트", "조합 결과: cart=[]의 []는 호출할 때마다 생기지 않는다. def가 실행될 때 한 번 만들어져 함수에 붙어 있고, 호출마다 그 리스트를 함께 쓴다.\n장바구니를 직접 넘긴 장담해의 테스트는 기본값을 한 번도 쓰지 않아서 통과했다.", `def add(item, cart=[]) → [] 한 번 생성, 함수에 붙음
 add("김밥") → 그 리스트에 담김
 add("라면") → 같은 리스트에 또 담김`)
       },
@@ -98,7 +98,7 @@ add("라면") → 같은 리스트에 또 담김`)
             { t: "손님마다 객체를 따로 만들 거예요.",
               press: [["wit", "Cart()를 부르면 되니까요."], ["me", "(그건 맞다.)"]] },
             { t: "@dataclass에 items: list = []로 적으면 손님마다 빈 리스트가 생겨요.",
-              press: [["wit", "자바의 필드 초기화처럼요."], ["me", "(정말 그렇게 될까?)"]] }
+              press: [["wit", "기본값을 적어 두면 새로 만들어 주겠죠."], ["me", "(정말 그렇게 될까?)"]] }
           ],
           answer: { line: 2, ev: "run_dc" },
           alt: { line: 2, ev: "once", say: [["me", "클래스 본문의 기본값도 한 번만 만들어져요."], ["witSweat", "dataclass는 알아서 해 주겠죠!"], ["me", "(실제로 적어 본 결과를 보여 주자.)"]] },
@@ -144,7 +144,7 @@ add("라면") → 같은 리스트에 또 담김`)
 count = 0
 def press():
     count += 1`),
-        run_test: pyEv("단정해의 테스트", "버튼을 만들면서 바로 불러 본 결과.", `result = []
+        run_test: pyEv("장담해의 테스트", "버튼을 만들면서 바로 불러 본 결과.", `result = []
 for n in range(3):
     button = lambda: f"{n}번 호출"
     result.append(button())
@@ -177,7 +177,7 @@ def make_counter():
 press = make_counter()
 press()
 print(press())`, "['0번 호출', '1번 호출', '2번 호출']\n2"),
-        late: ev("📌", "추리", "값이 아니라 이름을 기억한다", "조합 결과: lambda는 만들 때의 n 값이 아니라 ‘n이라는 이름’을 기억한다. 불릴 때 n을 찾아보면 반복이 끝난 뒤의 2가 들어 있다.\n단정해의 테스트는 반복 도중에 바로 불렀기 때문에 그때의 n이 나왔다. 누르는 시점이 다르면 결과가 다르다.", `만들 때 → n이라는 이름을 기억
+        late: ev("📌", "추리", "값이 아니라 이름을 기억한다", "조합 결과: lambda는 만들 때의 n 값이 아니라 ‘n이라는 이름’을 기억한다. 불릴 때 n을 찾아보면 반복이 끝난 뒤의 2가 들어 있다.\n장담해의 테스트는 반복 도중에 바로 불렀기 때문에 그때의 n이 나왔다. 누르는 시점이 다르면 결과가 다르다.", `만들 때 → n이라는 이름을 기억
 불릴 때 → n을 찾음 → 반복이 끝나서 2`)
       },
       script: [
@@ -190,7 +190,7 @@ print(press())`, "['0번 호출', '1번 호출', '2번 호출']\n2"),
             { t: "대기 번호 0, 1, 2로 버튼 세 개를 만들어요.",
               press: [["wit", "한 줄로 깔끔하죠."], ["me", "(만드는 건 맞다.)"]] },
             { t: "lambda는 만들어질 때의 n 값을 기억하니까, 나중에 눌러도 자기 번호를 불러요.",
-              press: [["wit", "Java 람다도 값을 잡잖아요."], ["me", "(정말 값을 잡을까?)"]] },
+              press: [["wit", "만들 때 사진 찍듯 값을 담아 두잖아요."], ["me", "(정말 값을 잡을까?)"]] },
             { t: "제 테스트에선 0번, 1번, 2번이 차례로 나왔어요.",
               press: [["wit", "다 달랐어요."], ["me", "(언제 불렀더라.)"]] }
           ],
@@ -254,13 +254,13 @@ print(press())`, "['0번 호출', '1번 호출', '2번 호출']\n2"),
       blurb: "민지가 담은 상품이 철수 장바구니에도 보인다. 그런데 쿠폰 수는 또 따로 논다.",
       characters: { mall: ["🛒", "마트 앱 (원고)"] },
       evidence: {
-        code: ev("📄", "코드", "장바구니 클래스", "Java 클래스를 옮긴 코드. 필드를 클래스 맨 위에 적었다.", `class Cart:
+        code: ev("📄", "코드", "장바구니 클래스", "장바구니 클래스. 필드를 클래스 맨 위에 적었다.", `class Cart:
     items = []       # 담은 상품
     coupons = 0      # 쿠폰 수
 
     def add(self, item):
         self.items.append(item)`),
-        run_test: pyEv("단정해의 테스트", "장바구니 하나로 담아 본 결과.", `class Cart:
+        run_test: pyEv("장담해의 테스트", "장바구니 하나로 담아 본 결과.", `class Cart:
     items = []
     def add(self, item):
         self.items.append(item)
@@ -301,13 +301,13 @@ minji = Cart()
 chulsoo = Cart()
 minji.add("김밥")
 print(minji.items, chulsoo.items)`, "['김밥'] []"),
-        shared: ev("📌", "추리", "클래스에 하나뿐인 리스트", "조합 결과: 클래스 본문의 items는 Java의 인스턴스 필드가 아니라 static 필드에 가깝다. 모든 Cart가 하나의 리스트를 본다.\nself.items.append는 대입이 아니라서 인스턴스에 새 변수를 만들지 않고, 클래스의 리스트를 바로 고친다. 장바구니 하나로 한 테스트에서는 함께 쓰는 상대가 없었다.", `class Cart: items = []  → Cart.items 하나
+        shared: ev("📌", "추리", "클래스에 하나뿐인 리스트", "조합 결과: 클래스 본문의 items는 객체마다 따로 있는 값이 아니라 클래스에 하나만 있는 값이다. 모든 Cart가 하나의 리스트를 본다.\nself.items.append는 대입이 아니라서 인스턴스에 새 변수를 만들지 않고, 클래스의 리스트를 바로 고친다. 장바구니 하나로 한 테스트에서는 함께 쓰는 상대가 없었다.", `class Cart: items = []  → Cart.items 하나
 minji.add / chulsoo.add → 같은 리스트`)
       },
       script: [
         { say: "judge", t: "‘모두의 장바구니 사건’의 재판을 시작합니다." },
         { say: "mall", t: "민지 님이 담은 김밥이 <b>철수 님 장바구니</b>에도 보여요. 이상한 건 쿠폰은 또 멀쩡히 따로 논다는 거예요!" },
-        { say: "wit", t: "필드를 Java처럼 클래스 맨 위에 적었어요. 객체를 따로 만들었으니 장바구니도 따로죠." },
+        { say: "wit", t: "필드는 클래스 맨 위에 적었어요. 객체를 따로 만들었으니 장바구니도 따로죠." },
         { gain: ["code", "run_test", "spec_class", "run_shared", "run_assign"], t: "법정 기록에 증거 5개가 들어왔다." },
         { cross: "c3a", title: "증언 ① 객체마다 따로 있다", who: "wit",
           lines: [
@@ -315,11 +315,11 @@ minji.add / chulsoo.add → 같은 리스트`)
               press: [["wit", "객체가 다르잖아요."], ["me", "(객체는 다르다.)"]] },
             { t: "장바구니 하나로 테스트했더니 김밥이 잘 담겼어요.",
               press: [["wit", "['김밥']이요."], ["me", "(하나였다.)"]] },
-            { t: "items를 클래스에 적었으니, Java 필드처럼 객체마다 자기 리스트를 가져요.",
+            { t: "items를 클래스에 적었으니, 객체마다 자기 리스트를 가져요.",
               press: [["wit", "필드는 원래 그렇잖아요."], ["me", "(정말 객체마다일까?)"]] }
           ],
           answer: { line: 2, ev: "run_shared" },
-          alt: { line: 2, ev: "spec_class", say: [["me", "클래스 본문의 변수는 클래스에 하나만 있어요."], ["wit", "Java에선 객체마다였다니까요!"], ["me", "(두 장바구니로 돌린 결과를 보여 주자.)"]] },
+          alt: { line: 2, ev: "spec_class", say: [["me", "클래스 본문의 변수는 클래스에 하나만 있어요."], ["wit", "객체를 따로 만들었다니까요!"], ["me", "(두 장바구니로 돌린 결과를 보여 주자.)"]] },
           hint: "두 손님의 장바구니로 돌려 본 결과가 있다.",
           win: [
             ["me", "민지만 담았는데 철수의 items가 <b>['김밥']</b>이에요. 두 장바구니가 같은 리스트를 보고 있어요."],
@@ -363,7 +363,7 @@ minji.add / chulsoo.add → 같은 리스트`)
       ],
       verdict: {
         say: "본 법정은 장바구니가 공유된 원인이 <b>클래스 본문에 적은 리스트</b>라고 판단합니다. 쿠폰이 멀쩡해 보인 건 대입이 가렸기 때문입니다!",
-        quote: "클래스 본문의 변수는 클래스에 하나만 있어서 모든 인스턴스가 함께 본다. Java의 인스턴스 필드가 아니라 static에 가깝다. self.items.append는 그 객체를 고치므로 공유되고, self.x = 값은 인스턴스에 새 변수를 만들어 가린다. 객체마다 필요한 값은 __init__에서 self에 만든다.",
+        quote: "클래스 본문의 변수는 클래스에 하나만 있어서 모든 인스턴스가 함께 본다. 객체마다 따로 있는 값이 아니다. self.items.append는 그 객체를 고치므로 공유되고, self.x = 값은 인스턴스에 새 변수를 만들어 가린다. 객체마다 필요한 값은 __init__에서 self에 만든다.",
         clues: [
           "클래스 본문의 변수는 클래스에 하나 (static에 가까움)",
           "<code>append</code>는 공유 객체를 고친다",
@@ -386,7 +386,7 @@ minji.add / chulsoo.add → 같은 리스트`)
 
 shops = {Point(3, 5): "분식집"}
 shops[Point(3, 5)]    # 사용자가 (3, 5)를 누름`),
-        run_test: pyEv("단정해의 테스트", "저장할 때 쓴 Point 객체를 그대로 다시 넣어 찾아 본 결과.", `class Point:
+        run_test: pyEv("장담해의 테스트", "저장할 때 쓴 Point 객체를 그대로 다시 넣어 찾아 본 결과.", `class Point:
     def __init__(self, x, y):
         self.x = x
         self.y = y
@@ -427,13 +427,13 @@ class Point:
 shops = {Point(3, 5): "분식집"}
 print(shops[Point(3, 5)])
 print(Point(3, 5))`, "분식집\nPoint(x=3, y=5)"),
-        loud: ev("📌", "추리", "일부러 막아 둔 해시", "조합 결과: __eq__를 정의하면 ‘같다’의 뜻이 바뀌었는데, 기본 해시는 여전히 객체마다 다르다. 그대로 두면 같은 좌표가 다른 칸으로 간다.\nJava는 이 경우 조용히 null을 주지만, Python은 __hash__를 None으로 만들어 처음부터 키로 못 쓰게 막는다. 시끄럽지만 더 안전한 실패다.", `__eq__ 정의 → __hash__ = None
+        loud: ev("📌", "추리", "일부러 막아 둔 해시", "조합 결과: __eq__를 정의하면 ‘같다’의 뜻이 바뀌었는데, 기본 해시는 여전히 객체마다 다르다. 그대로 두면 같은 좌표가 다른 칸으로 간다.\nPython은 이럴 때 __hash__를 None으로 만들어 처음부터 키로 못 쓰게 막는다. 조용히 틀린 값을 주는 것보다 시끄럽지만 더 안전한 실패다.", `__eq__ 정의 → __hash__ = None
 → 딕셔너리 키로 쓰면 바로 TypeError`)
       },
       script: [
         { say: "judge", t: "‘딕셔너리에 못 들어간 좌표 사건’의 재판을 시작합니다." },
         { say: "map", t: "지도에서 (3, 5)를 누르면 <b>가게가 없대요</b>. 고쳤다길래 켰더니 이번엔 지도가 <b>시작하자마자 멈춰요</b>!" },
-        { say: "wit", t: "Java 사건에서 배웠어요. equals만 있으면 된다는 건 함정이고… 음, 일단 Python은 알아서 값으로 비교하지 않나요?" },
+        { say: "wit", t: "좌표가 같으면 같은 칸이죠. Python이 알아서 값으로 비교하지 않나요?" },
         { gain: ["code", "run_test", "run_eq", "spec_hash", "run_key"], t: "법정 기록에 증거 5개가 들어왔다." },
         { cross: "c4a", title: "증언 ① 값이 같으면 같다", who: "wit",
           lines: [
@@ -470,7 +470,7 @@ print(Point(3, 5))`, "분식집\nPoint(x=3, y=5)"),
           hint: "__eq__를 정의하면 무슨 일이 생기는지 조합한 추리를 떠올려 보자.",
           win: [
             ["me", "__eq__를 정의하면 Python이 <b>__hash__를 None</b>으로 만들어요. 딕셔너리 키로 쓰는 순간 TypeError가 나고요. 앱이 시작하자마자 멈춘 이유예요."],
-            ["me", "Java라면 조용히 null이었겠지만, Python은 처음부터 막아 줘요. 해시까지 함께 있어야 키가 돼요."],
+            ["me", "Python은 틀린 칸을 조용히 찾는 대신 처음부터 막아 줘요. 해시까지 함께 있어야 키가 돼요."],
             ["witSweat", "으아악─!!"]
           ] },
         { choice: "judge", t: "Point를 딕셔너리 키로 쓰려면 어떻게 해야 합니까?",
@@ -489,7 +489,7 @@ print(Point(3, 5))`, "분식집\nPoint(x=3, y=5)"),
       ],
       verdict: {
         say: "본 법정은 가게를 못 찾은 원인이 <b>__eq__ 없는 Point</b>이고, 지도가 멈춘 원인이 <b>__hash__가 없어진 Point</b>라고 판단합니다. 지도 서버는 무죄!",
-        quote: "__eq__를 정의하지 않으면 == 는 같은 객체인지를 본다. __eq__만 정의하면 Python이 __hash__를 None으로 만들어 딕셔너리 키나 set에 넣을 때 TypeError가 난다. Java의 조용한 null보다 시끄럽지만 안전한 실패다. 값 객체는 @dataclass(frozen=True)로 만든다.",
+        quote: "__eq__를 정의하지 않으면 == 는 같은 객체인지를 본다. __eq__만 정의하면 Python이 __hash__를 None으로 만들어 딕셔너리 키나 set에 넣을 때 TypeError가 난다. 조용히 틀리는 것보다 시끄럽지만 안전한 실패다. 값 객체는 @dataclass(frozen=True)로 만든다.",
         clues: [
           "<code>__eq__</code>가 없으면 같은 객체 비교",
           "<code>__eq__</code>만 정의 → <code>__hash__ = None</code> → TypeError",
@@ -506,7 +506,7 @@ print(Point(3, 5))`, "분식집\nPoint(x=3, y=5)"),
       boss: true, hard: true, trust: 3,
       characters: { lead: ["🧑‍💼", "서비스 기획자 (원고)"] },
       evidence: {
-        code: ev("📄", "코드", "회원 시스템 코드", "회원 기능을 Java에서 옮겨 온 코드의 일부.", `# ① 가입 쿠폰
+        code: ev("📄", "코드", "회원 시스템 코드", "회원 기능 코드의 일부.", `# ① 가입 쿠폰
 def join(name, coupons=[]):
     coupons.append("가입 축하")
     return coupons
@@ -608,7 +608,7 @@ print(chulsoo.favorites)`, "['가입 축하']\n['민지님 안녕하세요', '�
             { t: "회원은 사람마다 Member()로 만들어요.",
               press: [["wit", "객체지향의 기본이죠."], ["me", "(객체는 다르다.)"]] },
             { t: "favorites를 클래스에 적었으니 회원마다 자기 즐겨찾기를 가져요.",
-              press: [["wit", "Java 필드처럼요."], ["me", "(3화에서 본 그 코드다.)"]] },
+              press: [["wit", "필드는 맨 위에 적는 거죠."], ["me", "(3화에서 본 그 코드다.)"]] },
             { t: "남의 즐겨찾기가 보이는 건 화면 캐시 때문이에요.",
               press: [["wit", "프런트가 늘 문제죠."], ["me", "(캐시 탓은 마지막에.)"]] }
           ],

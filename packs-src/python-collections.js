@@ -2,7 +2,7 @@
 // 빌드: node tools/build-packs.js → packs/python-collections.json
 // 실행 결과 증거(run)는 tools/verify-run.js가 Python으로 실제로 돌려서 확인한다.
 // 힌트: 챕터 2라 조합 안내는 증거 하나만 알려 주고, 추궁 대사는 의심만 하고 증거를 가리키지 않는다.
-const { ev, pyEv, spec, COMMON } = require("./_helpers");
+const { ev, pyEv, spec, PY_COMMON } = require("./_helpers");
 
 module.exports = {
   format: "code-court/v1",
@@ -10,8 +10,8 @@ module.exports = {
   title: "Python 컬렉션 법정",
   language: "Python",
   blurb: "리스트 곱하기와 복사, 반복 중 삭제, 딕셔너리의 get, None을 돌려주는 sort와 일회용 제너레이터. 예외 없이 조용히 틀리는 코드를 반박해요.",
-  lead: "Python 2챕터는 리스트와 딕셔너리예요. Java라면 예외가 났을 자리에서 Python은 조용히 넘어가기도 합니다. ‘에러가 안 났다’를 믿지 마세요. 1챕터보다 힌트가 조금 줄어요. 실행 결과는 모두 Python 3.14로 실제로 돌린 값이에요.",
-  commonCharacters: COMMON,
+  lead: "Python 2챕터는 리스트와 딕셔너리예요. 잘못된 코드인데도 Python은 에러 없이 조용히 넘어가기도 합니다. ‘에러가 안 났다’를 믿지 마세요. 1챕터보다 힌트가 조금 줄어요. 실행 결과는 모두 Python 3.14로 실제로 돌린 값이에요.",
+  commonCharacters: PY_COMMON,
   cases: [
     /* ---------------- 1화 ---------------- */
     {
@@ -23,7 +23,7 @@ module.exports = {
 seats[0][1] = 1           # 1열 2번 예약
 
 backup = seats.copy()     # 예약 전 백업`),
-        run_test: pyEv("단정해의 테스트", "한 줄짜리 좌석으로 2번 자리를 예약해 본 결과.", `row = [0] * 3
+        run_test: pyEv("장담해의 테스트", "한 줄짜리 좌석으로 2번 자리를 예약해 본 결과.", `row = [0] * 3
 row[1] = 1
 print(row)`, "[0, 1, 0]"),
         run_grid: pyEv("실제 좌석표", "실제 코드 그대로 1열 2번을 예약해 본 결과.", `seats = [[0] * 3] * 2
@@ -88,7 +88,7 @@ print(backup)`, "[[0, 1, 0], [0, 0, 0]]\n[[0, 0, 0], [0, 0, 0]]"),
           hint: "copy로 백업한 뒤 원본을 칠해 본 결과가 있다.",
           win: [
             ["me", "좌석표를 제대로 만들어도, copy()로 백업한 뒤 원본을 칠하면 백업이 <b>[[0, 1], [0, 0]]</b>으로 같이 바뀌어요."],
-            ["me", "copy()는 <b>얕은 복사</b>예요. 바깥 리스트만 새것이고 안의 줄은 같은 객체예요. Java의 new ArrayList와 같죠."],
+            ["me", "copy()는 <b>얕은 복사</b>예요. 바깥 리스트만 새것이고 안의 줄은 같은 객체예요. 상자는 새로 샀는데 안의 물건은 그대로 옮겨 담은 셈이죠."],
             ["witSweat", "으아악─!!"]
           ] },
         { choice: "judge", t: "좌석표와 백업은 어떻게 만들어야 합니까?",
@@ -126,7 +126,7 @@ print(backup)`, "[[0, 1, 0], [0, 0, 0]]\n[[0, 0, 0], [0, 0, 0]]"),
         code: ev("📄", "코드", "품절 삭제 코드", "장바구니에서 품절 상품을 지우는 부분.", `for item in cart:
     if item == sold_out:
         cart.remove(item)`),
-        run_test: pyEv("단정해의 테스트", "라볶이가 하나만 있는 장바구니로 돌려 본 결과.", `cart = ["김밥", "라볶이", "튀김"]
+        run_test: pyEv("장담해의 테스트", "라볶이가 하나만 있는 장바구니로 돌려 본 결과.", `cart = ["김밥", "라볶이", "튀김"]
 for item in cart:
     if item == "라볶이":
         cart.remove(item)
@@ -158,13 +158,13 @@ except Exception as e:
 print([item for item in cart if item != "라볶이"])
 stock = {"김밥": 0, "라면": 3}
 print({k: v for k, v in stock.items() if v != 0})`, "['김밥', '튀김']\n{'라면': 3}"),
-        skip: ev("📌", "추리", "당겨져서 건너뛴 원소", "조합 결과: for문은 번호를 하나씩 늘려 간다. 지우면 뒤 원소가 앞으로 당겨지는데 번호는 그대로 다음으로 가서, 당겨진 원소는 검사를 받지 못한다.\nJava의 for-each는 이때 ConcurrentModificationException으로 알려 주지만, Python 리스트는 아무 말 없이 건너뛴다. 하나만 지운 테스트에는 건너뛸 짝이 없었다.", `[김밥, 라볶이, 라볶이, 튀김]  번호 1에서 지움
+        skip: ev("📌", "추리", "당겨져서 건너뛴 원소", "조합 결과: for문은 번호를 하나씩 늘려 간다. 지우면 뒤 원소가 앞으로 당겨지는데 번호는 그대로 다음으로 가서, 당겨진 원소는 검사를 받지 못한다.\nPython 리스트는 이때 에러를 내지 않고 아무 말 없이 건너뛴다. 하나만 지운 테스트에는 건너뛸 짝이 없었다.", `[김밥, 라볶이, 라볶이, 튀김]  번호 1에서 지움
 [김밥, 라볶이, 튀김]         번호 2로 이동 → 남은 라볶이를 건너뜀`)
       },
       script: [
         { say: "judge", t: "‘남아 있는 품절 상품 사건’의 재판을 시작합니다." },
         { say: "shop", t: "품절된 라볶이를 지웠는데 <b>한 개가 그대로 결제됐어요</b>. 로그에 에러는 하나도 없고요!" },
-        { say: "wit", t: "Java에선 반복 중에 지우면 예외가 났죠. Python은 예외가 안 나요. 그러니까 안전한 거예요." },
+        { say: "wit", t: "반복 중에 지웠는데 에러가 하나도 안 났어요. 에러가 없으니까 안전한 거예요." },
         { gain: ["code", "run_test", "run_two", "spec_iter", "run_seen", "run_dict"], t: "법정 기록에 증거 6개가 들어왔다." },
         { cross: "c2a", title: "증언 ① 예외가 없으니 안전하다", who: "wit",
           lines: [
@@ -219,7 +219,7 @@ print({k: v for k, v in stock.items() if v != 0})`, "['김밥', '튀김']\n{'라
       ],
       verdict: {
         say: "본 법정은 라볶이가 남은 원인이 <b>돌면서 지운 리스트</b>라고 판단합니다. 에러가 없었던 건 안전해서가 아니었습니다!",
-        quote: "Python 리스트를 for로 돌면서 지우면 뒤 원소가 당겨져 하나를 건너뛰고, 예외는 나지 않는다. Java처럼 알려 주지 않아서 더 조용하다. 딕셔너리는 도는 중에 크기가 바뀌면 RuntimeError가 난다. 컴프리헨션으로 새 리스트나 새 딕셔너리를 만든다.",
+        quote: "Python 리스트를 for로 돌면서 지우면 뒤 원소가 당겨져 하나를 건너뛰고, 예외는 나지 않는다. 아무도 알려 주지 않아서 더 위험하다. 딕셔너리는 도는 중에 크기가 바뀌면 RuntimeError가 난다. 컴프리헨션으로 새 리스트나 새 딕셔너리를 만든다.",
         clues: [
           "리스트: 돌면서 지우면 예외 없이 건너뛴다",
           "하나만 지운 테스트는 통과한다",
@@ -240,7 +240,7 @@ carts.get(user, []).append(item)    # 회원 장바구니에 담기
 
 counts = {}
 counts[menu] += 1                   # 메뉴별 주문 수`),
-        run_test: pyEv("단정해의 테스트", "장바구니가 이미 있는 회원으로 담아 본 결과.", `carts = {"민지": ["김밥"]}
+        run_test: pyEv("장담해의 테스트", "장바구니가 이미 있는 회원으로 담아 본 결과.", `carts = {"민지": ["김밥"]}
 carts.get("민지", []).append("라면")
 print(carts)`, "{'민지': ['김밥', '라면']}"),
         run_new: pyEv("처음 담는 회원", "장바구니가 없는 새 회원으로 담아 본 결과.", `carts = {}
@@ -260,7 +260,7 @@ carts = defaultdict(list)
 carts["철수"].append("라면")
 print(dict(carts))
 print(Counter(["김밥", "라면", "김밥"]))`, "{'철수': ['라면']}\nCounter({'김밥': 2, '라면': 1})"),
-        temp: ev("📌", "추리", "어디에도 없는 임시 리스트", "조합 결과: get의 기본값 []는 그 자리에서 만들어진 임시 리스트다. 딕셔너리에 들어가지 않는다. 라면은 그 임시 리스트에 담겼다가, 줄이 끝나면서 함께 사라졌다.\n이미 장바구니가 있는 회원은 get이 진짜 리스트를 돌려줘서 통과했다. Java의 getOrDefault와 같은 함정이다.", `있는 회원: get → 진짜 리스트 → 담김
+        temp: ev("📌", "추리", "어디에도 없는 임시 리스트", "조합 결과: get의 기본값 []는 그 자리에서 만들어진 임시 리스트다. 딕셔너리에 들어가지 않는다. 라면은 그 임시 리스트에 담겼다가, 줄이 끝나면서 함께 사라졌다.\n이미 장바구니가 있는 회원은 get이 진짜 리스트를 돌려줘서 통과했다. 기존 회원으로만 테스트하면 드러나지 않는다.", `있는 회원: get → 진짜 리스트 → 담김
 새 회원:   get → 임시 [] → 담긴 뒤 버려짐`)
       },
       script: [
@@ -343,7 +343,7 @@ valid = (s for s in scores if s >= 0)   # 결시(-1) 빼기
 total = sum(valid)
 count = sum(1 for _ in valid)
 average = total / count`),
-        run_test: pyEv("단정해의 테스트", "리스트로 합계와 개수를 각각 구해 본 결과.", `scores = [70, 95, 80]
+        run_test: pyEv("장담해의 테스트", "리스트로 합계와 개수를 각각 구해 본 결과.", `scores = [70, 95, 80]
 print(sum(scores), len(scores))`, "245 3"),
         run_sort: pyEv("랭킹 실행 결과", "sort의 결과를 ranking에 담아 찍어 본 결과.", `scores = [70, 95, 80]
 ranking = scores.sort(reverse=True)
@@ -361,7 +361,7 @@ print(sum(1 for _ in valid))`, "245\n0"),
 valid = [s for s in scores if s >= 0]
 print(sorted(valid, reverse=True))
 print(sum(valid) / len(valid))`, "[95, 80, 70]\n81.66666666666667"),
-        oneshot: ev("📌", "추리", "한 번 꺼내면 빈 제너레이터", "조합 결과: 괄호로 만든 제너레이터는 값을 담아 두지 않고, 하나씩 꺼내 주는 흐름이다. sum이 끝까지 꺼낸 뒤에는 비어 있다.\n그래서 개수는 0이 됐고 평균에서 0으로 나눴다. Java의 일회용 스트림과 같은 함정인데, Python은 다시 써도 예외 없이 그냥 비어 있다.", `sum(valid)      → 245 (끝까지 꺼냄)
+        oneshot: ev("📌", "추리", "한 번 꺼내면 빈 제너레이터", "조합 결과: 괄호로 만든 제너레이터는 값을 담아 두지 않고, 하나씩 꺼내 주는 흐름이다. sum이 끝까지 꺼낸 뒤에는 비어 있다.\n그래서 개수는 0이 됐고 평균에서 0으로 나눴다. 다시 써도 에러 없이 그냥 비어 있어서 알아채기 어렵다.", `sum(valid)      → 245 (끝까지 꺼냄)
 sum(1 for …)    → 0   (이미 비어 있음, 예외 없음)`)
       },
       script: [
@@ -372,7 +372,7 @@ sum(1 for …)    → 0   (이미 비어 있음, 예외 없음)`)
         { cross: "c4a", title: "증언 ① sort가 결과를 돌려준다", who: "wit",
           lines: [
             { t: "scores.sort()는 정렬된 리스트를 돌려주니까, ranking에 담으면 랭킹이 돼요.",
-              press: [["wit", "Java 스트림의 sorted처럼요."], ["me", "(정말 돌려줄까?)"]] },
+              press: [["wit", "이름이 정렬하라는 뜻이잖아요."], ["me", "(정말 돌려줄까?)"]] },
             { t: "합계와 개수는 제가 테스트해서 245, 3이 나왔어요.",
               press: [["wit", "리스트로 해 봤어요."], ["me", "(리스트였다.)"]] },
             { t: "None이 찍히는 건 화면이 고장 나서예요.",
@@ -404,7 +404,7 @@ sum(1 for …)    → 0   (이미 비어 있음, 예외 없음)`)
           hint: "제너레이터가 어떤 것인지 조합한 추리를 떠올려 보자.",
           win: [
             ["me", "valid는 목록이 아니라 <b>제너레이터</b>예요. sum이 끝까지 꺼낸 뒤엔 비어 있어서, 개수가 0이 됐어요."],
-            ["me", "Java 스트림은 다시 쓰면 예외가 났지만, Python은 말없이 비어 있어요."],
+            ["me", "다시 써도 에러가 안 나요. 말없이 비어 있을 뿐이에요."],
             ["witSweat", "으아악─!!"]
           ] },
         { choice: "judge", t: "어떻게 고쳐야 합니까?",

@@ -2,7 +2,11 @@
 (function () {
   "use strict";
   const Core = window.CourtCore;
+  const Fx = window.CourtFx;
+  const Sound = Fx.Sound;
+  const Music = Fx.Music;
   const $ = id => document.getElementById(id);
+  const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const DEV = location.hash === "#dev";   // #dev면 개발용(test) 팩도 보인다
 
   let packs = [];        // packs/index.json 목록
@@ -37,6 +41,7 @@
   function showHome() {
     screen = "home"; pack = null; C = null;
     document.body.classList.remove("boss-mode");
+    Music.mood("court");
     showMenuChrome("코드 법정", "코드 법정", false);
     $("lead").textContent = "증언에서 모순을 찾아 증거를 제시하세요. 코드가 정말 그렇게 동작하는지, 반례와 실행 결과로 반박하는 재판이에요.";
     const visible = packs.filter(p => DEV || !p.test);
@@ -103,6 +108,7 @@
   function showPack() {
     screen = "pack"; C = null;
     document.body.classList.remove("boss-mode");
+    Music.mood("court");
     showMenuChrome(pack.title, pack.title, true);
     $("tabs").hidden = true; $("cases").removeAttribute("role");
     $("lead").textContent = pack.lead || "증언에서 모순을 찾아 증거를 제시하세요.";
@@ -121,7 +127,7 @@
     b.disabled = !!soon;
     const chap = chapter ? `<span class="chap">${esc(chapter[0])}챕터${chapter[1] ? `<small>${esc(chapter[1])}</small>` : ""}</span>` : `<span class="ep">${esc(ep)}</span>`;
     b.innerHTML = `<div class="row">${chap}<span class="state ${state[0]}">${esc(state[1])}</span></div><h2>${esc(title)}</h2><p>${esc(blurb)}</p>`;
-    if (!soon) b.addEventListener("click", on);
+    if (!soon) b.addEventListener("click", () => { Sound.click(); on(); });
     return b;
   }
 
@@ -141,22 +147,60 @@
     $("menu").hidden = true; $("stage").hidden = false;
     $("hearts").hidden = false; $("trustLabel").hidden = false; $("homeBtn").hidden = false;
     $("ep").textContent = c.ep; $("caseTitle").textContent = c.title;
+    lastSpeaker = null;
+    Sound.gavel(c.boss ? 3 : 1);
     render();
   }
 
   function hearts() {
     $("hearts").innerHTML = Array.from({ length: Core.maxTrust(C) }, (_, k) => `<i class="${k < S.trust ? "" : "lost"}"></i>`).join("");
   }
+  /* 말하는 사람: 실루엣(SVG) + 이름표. 사람이 바뀔 때만 등장 연출을 한다 */
+  let lastSpeaker = null, pitch = 260;
   function setSpeaker(key) {
     const [face, name] = P[key] || ["❔", key];
-    $("portrait").innerHTML = `${esc(face)}<small>${esc(name)}</small>`;
+    const base = key.replace(/Sweat$/, "");
+    $("portrait").innerHTML = Fx.portrait(key, name, face);
+    if (base !== lastSpeaker) { const f = $("portrait").firstElementChild; if (f) f.classList.add("enter"); }
+    lastSpeaker = base;
+    $("plate").innerHTML = `<span>${esc(face)}</span>${esc(name)}`;
+    pitch = Fx.voice(key);
     const w = $("who");
     w.textContent = name;
     w.className = "who" + (key === "me" ? " me" : key === "judge" ? " judge" : "");
   }
+
+  /* 대사는 한 글자씩 찍힌다. 대화창이나 '다음'을 누르면 바로 끝까지 보여 준다 */
+  let typing = null;
+  function typeIn(el) {
+    if (typing) typing.finish();
+    if (REDUCED) return;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const nodes = []; let n;
+    while ((n = walker.nextNode())) { nodes.push([n, n.data]); n.data = ""; }
+    let ni = 0, ci = 0, count = 0;
+    const box = $("box");
+    box.classList.add("typing");
+    const finish = () => {
+      nodes.forEach(([node, full]) => { node.data = full; });
+      clearInterval(timer); typing = null; box.classList.remove("typing");
+    };
+    const timer = setInterval(() => {
+      for (let k = 0; k < 2; k++) {
+        if (ni >= nodes.length) { finish(); return; }
+        const [node, full] = nodes[ni];
+        const ch = full[ci];
+        node.data = full.slice(0, ++ci);
+        if (ci >= full.length) { ni++; ci = 0; }
+        if (ch && ch.trim() && count++ % 3 === 0) Sound.blip(pitch);
+      }
+    }, 26);
+    typing = { finish };
+  }
   function setText(t, testimony) {
     $("text").innerHTML = rich(t);
     $("box").classList.toggle("testimony", !!testimony);
+    typeIn($("text"));
   }
   function setTag(t) { $("tagline").innerHTML = t ? `<span class="tag">${esc(t)}</span>` : ""; }
 
@@ -167,14 +211,41 @@
       if (b === "|") { const s = document.createElement("span"); s.className = "spacer"; a.appendChild(s); return; }
       const el = document.createElement("button");
       el.className = "btn " + (b.cls || ""); el.textContent = b.label; el.disabled = !!b.disabled;
-      el.addEventListener("click", b.on); a.appendChild(el);
+      // 대사가 아직 찍히는 중이면 '다음'은 먼저 대사를 끝까지 보여 준다
+      el.addEventListener("click", e => {
+        if (typing && b.cls === "primary") { typing.finish(); return; }
+        if (typing) typing.finish();
+        if (b.cls !== "present") Sound.click();
+        b.on(e);
+      });
+      a.appendChild(el);
       if (b.cls === "primary" && !b.disabled) primaryAction = b.on;
     });
   }
+  function restart(el) { el.style.animation = "none"; void el.offsetWidth; el.style.animation = ""; }
+  function quake() { if (REDUCED) return; const w = $("wrap"); w.classList.remove("quake"); void w.offsetWidth; w.classList.add("quake"); }
+  let shoutTimer = null;
   function shout(text, hold) {
     const s = $("shout"); $("shoutText").textContent = text; s.classList.toggle("hold", !!hold);
-    s.hidden = false; const span = $("shoutText"); span.style.animation = "none"; void span.offsetWidth; span.style.animation = "";
-    setTimeout(() => { s.hidden = true; }, 900);
+    const flying = s.classList.contains("evonly");
+    s.classList.remove("evonly");
+    if (!flying) $("evFly").hidden = true;
+    s.hidden = false;
+    s.querySelectorAll(".flash, .lines, #shoutText").forEach(restart);
+    if (hold) Sound.hold(); else { Sound.objection(); quake(); }
+    Music.duck(1.6);
+    clearTimeout(shoutTimer);
+    shoutTimer = setTimeout(() => { s.hidden = true; $("evFly").hidden = true; }, 900);
+  }
+  // 증거 카드가 아래에서 날아오른 뒤 then()을 부른다
+  function flyEvidence(e, then) {
+    const s = $("shout"), f = $("evFly");
+    clearTimeout(shoutTimer);
+    s.classList.add("evonly");
+    f.textContent = `${e.ic} ${e.name}`;
+    f.hidden = false; s.hidden = false; restart(f);
+    Sound.whoosh();
+    setTimeout(then, REDUCED ? 0 : 520);
   }
   function shake() { const p = $("portrait"); p.classList.remove("shake"); void p.offsetWidth; p.classList.add("shake"); }
 
@@ -199,7 +270,9 @@
     if (S.trust <= 0) return gameOver();
     const st = Core.enter(C, S);
     const k = Core.kind(st);
-    if (k === "gain") save();
+    if (k === "gain") { save(); Sound.gain(); }
+    // 증언 장면은 renderCross가 'cross'로, 판결은 음악을 멈춘다. 나머지는 대화 음악
+    if (k === "verdict") Music.mood("rest"); else if (k !== "cross") Music.mood("court");
 
     if (k === "say") {
       setSpeaker(st.say); setText(st.t); setTag("");
@@ -233,6 +306,7 @@
 
   function renderCross(st) {
     const ln = st.lines[S.line];
+    Music.mood("cross");
     setSpeaker(st.who);
     setTag(`${st.title} · ${S.line + 1}/${st.lines.length}`);
     setText(ln.t, true);
@@ -245,7 +319,7 @@
   }
 
   function penalty(msg, gameOverNow) {
-    save(); hearts(); shake();
+    save(); hearts(); shake(); quake(); Sound.wrong(); Music.duck(1.2);
     setSpeaker("judge"); setTag("");
     setText((msg ? msg + "\n" : "") + (S.trust > 0 ? `<b>재판장 신뢰도 −1</b> (남은 신뢰도 ${S.trust})` : ""));
     $("choiceArea").innerHTML = "";
@@ -257,7 +331,9 @@
     closeSheet();
     const st = Core.step(C, S);
     const r = Core.present(C, S, evId);
-    if (r.result === "win") { shout("이의 있음!"); setTimeout(() => playLines(r.lines, next), 650); }
+    if (r.result === "win") {
+      flyEvidence(C.evidence[evId], () => { shout("이의 있음!"); setTimeout(() => playLines(r.lines, next), 650); });
+    }
     else if (r.result === "alt") { shout("잠깐!", true); setTimeout(() => playLines(r.lines, () => renderCross(st)), 650); }
     else penalty(`변호인, 그 증거(${r.evName})가 지금 증언과 어떻게 모순된다는 거죠?` + (r.hint ? `\n💡 ${r.hint}` : ""), r.gameOver);
   }
@@ -321,6 +397,7 @@
 
   /* ---------- 결말 ---------- */
   function gameOver() {
+    Music.mood("rest");
     setSpeaker("judge"); setTag("");
     const ads = window.CourtAds && window.CourtAds.available();
     setText("변호인의 주장은 근거가 부족하군요. 오늘은 여기까지 하겠습니다.\n<b>신뢰도가 바닥났어요.</b> "
@@ -338,6 +415,7 @@
     const v = C.verdict;
     const solved = fetchKey(solvedKey(pack)) || {};
     solved[C.id] = true; store(solvedKey(pack), solved);
+    Sound.gavel(3); setTimeout(() => Sound.solve(), 700);
     setSpeaker("judge"); setTag("");
     setText(v.say);
     const area = $("choiceArea"); area.className = "";
@@ -357,10 +435,39 @@
   $("homeBtn").addEventListener("click", () => { closeSheet(); showPack(); });
   $("backBtn").addEventListener("click", showHome);
   $("sheetBg").addEventListener("click", closeSheet);
+  // 대화창을 누르면: 찍히는 중이면 끝까지, 아니면 '다음'
+  $("box").addEventListener("click", () => {
+    if (typing) { typing.finish(); return; }
+    if (primaryAction) { Sound.click(); primaryAction(); }
+  });
   document.addEventListener("keydown", e => {
     if (e.key === "Escape" && !$("sheet").hidden) { closeSheet(); return; }
-    if (e.key === "Enter" && screen === "case" && $("sheet").hidden && primaryAction && document.activeElement?.tagName !== "BUTTON") primaryAction();
+    if (e.key === "Enter" && screen === "case" && $("sheet").hidden && document.activeElement?.tagName !== "BUTTON") {
+      if (typing) typing.finish(); else if (primaryAction) primaryAction();
+    }
   });
+
+  /* 효과음 켜기·끄기 */
+  function drawSound() {
+    const b = $("soundBtn"), m = $("musicBtn");
+    b.textContent = Sound.on ? "효과음 켬" : "효과음 끔";
+    b.setAttribute("aria-pressed", String(Sound.on));
+    m.textContent = Music.on ? "음악 켬" : "음악 끔";
+    m.setAttribute("aria-pressed", String(Music.on));
+  }
+  $("soundBtn").addEventListener("click", () => { Sound.toggle(); drawSound(); });
+  $("musicBtn").addEventListener("click", () => { Music.toggle(); drawSound(); });
+  drawSound();
+
+  /* 타이틀 화면 */
+  $("startBtn").addEventListener("click", () => {
+    Sound.unlock(); Sound.start();
+    setTimeout(() => Music.start(), 1100);   // 시작 종소리가 울린 뒤 음악이 천천히 들어온다
+    const t = $("title");
+    t.classList.add("out");
+    setTimeout(() => { t.hidden = true; }, REDUCED ? 0 : 600);
+  });
+  setTimeout(() => $("startBtn").focus(), 0);
 
   // 오프라인에서도 열리게 서비스 워커 등록 (지원하지 않는 브라우저에서는 그냥 넘어간다)
   if ("serviceWorker" in navigator) {
