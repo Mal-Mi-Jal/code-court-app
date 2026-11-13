@@ -17,6 +17,7 @@
   let screen = "home";
   let lang = null;       // 홈에서 고른 언어 탭
   const LANG_KEY = "court:lang";
+  const FEEDBACK_URL = "https://forms.gle/Ym5zNLmMVWrHjkL76";   // 의견 남기기 (구글 폼, 익명)
   const langOf = p => p.test ? "개발용" : (p.language || "기타");
 
   /* ---------- 저장 (기기 안에만) ---------- */
@@ -425,6 +426,7 @@
       <strong>이번 사건에서 모은 단서</strong>
       <ul>${v.clues.map(c => `<li>${rich(c)}</li>`).join("")}</ul>
       <span>남은 신뢰도: ${S.trust} / ${Core.maxTrust(C)}</span>
+      <a class="feedback-inline" href="${FEEDBACK_URL}" target="_blank" rel="noopener">이 사건 어땠나요? 의견 남기기 ↗</a>
     </div>`;
     actions([recordBtn(), "|",
       { label: "이 사건 다시", on: () => { S = Core.fresh(C); save(); render(); } },
