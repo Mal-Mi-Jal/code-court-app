@@ -187,6 +187,26 @@ button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 .choice:hover { border-color: var(--amber); border-left-color: var(--amber); background: #1d1915; }
 .choice.code { word-break: normal; overflow-wrap: normal; font-family: var(--f-code); font-size: .82rem; line-height: 1.6; white-space: pre; overflow-x: auto; min-width: 0; }
 
+/* 증언 조작 안내 (증언에서 한 번 이길 때까지) */
+.coach { margin: 0; padding: 9px 12px; font-size: .84rem; line-height: 1.55; color: var(--ink-dim); border: 1px dashed var(--line); border-radius: 3px; background: rgb(255 255 255 / .02); }
+.coach b { color: var(--amber); font-weight: 600; }
+.coach b:first-child { display: block; margin-bottom: 2px; color: var(--ink); }
+
+/* 문법 하이라이팅: 증거 카드는 밝은 종이 위, 코드 선택지는 어두운 바탕 위 */
+.ev-detail .hl-kw { color: #8a2c12; font-weight: 600; }
+.ev-detail .hl-type { color: #1d5c63; }
+.ev-detail .hl-str { color: #3d6b1f; }
+.ev-detail .hl-num { color: #1f4f9a; }
+.ev-detail .hl-com { color: #7d725f; font-style: italic; }
+.ev-detail .hl-ann, .ev-detail .hl-fn { color: #6b3f8f; }
+.ev-detail .hl-out { display: block; margin-top: 2px; padding: 4px 6px; border-left: 3px solid #b5781f; background: rgb(255 255 255 / .45); color: var(--paper-ink); font-weight: 700; }
+.choice .hl-kw { color: #f0a46a; }
+.choice .hl-type { color: #7cc7c2; }
+.choice .hl-str { color: #a9cf86; }
+.choice .hl-num { color: #9db8f0; }
+.choice .hl-com { color: #8a8070; font-style: italic; }
+.choice .hl-ann, .choice .hl-fn { color: #c9a2e6; }
+
 /* ---------- 이의 있음! 연출 ---------- */
 .shout { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; z-index: 30; overflow: hidden; }
 .shout.evonly .flash, .shout.evonly .lines, .shout.evonly span { display: none; }

@@ -5,6 +5,7 @@
   const Fx = window.CourtFx;
   const Sound = Fx.Sound;
   const Music = Fx.Music;
+  const HL = window.CourtHighlight;
   const $ = id => document.getElementById(id);
   const REDUCED = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const DEV = location.hash === "#dev";   // #dev면 개발용(test) 팩도 보인다
@@ -22,6 +23,17 @@
   function track(path, title) {
     try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path, title, event: true }); } catch (e) {}
   }
+  // 사건 안에서 어디까지 갔는지(증언·선택·조합 도착, 틀림, 신뢰도 바닥)를 단계 번호로 센다.
+  // 같은 탭에서 같은 단계는 한 번만 보낸다 → "시작은 많은데 해결은 적다"가 어느 장면 때문인지 보인다
+  const sentSteps = new Set();
+  function trackStep(what, label) {
+    if (!pack || !C || !S) return;
+    const p = `${what}/${pack.id}/${C.id}/${S.i}`;
+    if (sentSteps.has(p)) return;
+    sentSteps.add(p);
+    track(p, `${label}: ${pack.title} · ${C.title} · 단계 ${S.i}`);
+  }
+  const COACH_KEY = "court:coached";   // 증언에서 한 번 이기면 조작 안내를 그만 보여 준다
   const langOf = p => p.test ? "개발용" : (p.language || "기타");
 
   /* ---------- 저장 (기기 안에만) ---------- */
@@ -277,6 +289,9 @@
     const st = Core.enter(C, S);
     const k = Core.kind(st);
     if (k === "gain") { save(); Sound.gain(); }
+    if (k === "cross") trackStep("reach", "증언 도착");
+    else if (k === "choice") trackStep("reach", "선택 도착");
+    else if (k === "combine") trackStep("reach", "조합 도착");
     // 증언 장면은 renderCross가 'cross'로, 판결은 음악을 멈춘다. 나머지는 대화 음악
     if (k === "verdict") Music.mood("rest"); else if (k !== "cross") Music.mood("court");
 
@@ -297,7 +312,8 @@
       const area = $("choiceArea"); area.className = "choices";
       // 정답 위치로 찍지 못하게 그릴 때마다 순서를 섞는다. 판정은 원래 번호(idx)로 한다
       shuffled(st.options.map((o, idx) => ({ o, idx }))).forEach(({ o, idx }) => {
-        const b = document.createElement("button"); b.className = "choice" + (o.code ? " code" : ""); b.textContent = o.t;
+        const b = document.createElement("button"); b.className = "choice" + (o.code ? " code" : "");
+        if (o.code) b.innerHTML = HL.highlight(o.t, pack.language); else b.textContent = o.t;
         b.addEventListener("click", () => {
           const r = Core.choose(C, S, idx);
           if (r.ok) { area.innerHTML = ""; shout("이의 있음!"); setTimeout(() => playLines(r.lines, next), 650); }
@@ -316,6 +332,12 @@
     setSpeaker(st.who);
     setTag(`${st.title} · ${S.line + 1}/${st.lines.length}`);
     setText(ln.t, true);
+    // 처음 하는 사람은 버튼 네 개만 보고는 무엇을 할지 모른다 → 증언에서 한 번 이길 때까지 조작 안내
+    const area = $("choiceArea");
+    if (!fetchKey(COACH_KEY)) {
+      area.className = "";
+      area.innerHTML = `<p class="coach"><b>증언 읽는 법</b> ◀ ▶로 증언을 한 줄씩 넘겨 읽어요. 궁금한 줄은 <b>추궁하기</b>로 더 캐물을 수 있어요 (감점 없음). 사실과 다른 줄을 찾았으면, 그 줄을 띄운 채로 <b>증거 제시</b>를 눌러 모순되는 증거를 내밀어요. 틀린 증거를 내면 신뢰도가 하나 줄어요.</p>`;
+    } else area.innerHTML = "";
     actions([
       { label: "◀", disabled: S.line === 0, on: () => { Core.moveLine(C, S, -1); save(); renderCross(st); } },
       { label: "추궁하기", on: () => playLines(ln.press, () => renderCross(st)) },
@@ -325,6 +347,7 @@
   }
 
   function penalty(msg, gameOverNow) {
+    trackStep("miss", "틀림");
     save(); hearts(); shake(); quake(); Sound.wrong(); Music.duck(1.2);
     setSpeaker("judge"); setTag("");
     setText((msg ? msg + "\n" : "") + (S.trust > 0 ? `<b>재판장 신뢰도 −1</b> (남은 신뢰도 ${S.trust})` : ""));
@@ -338,6 +361,8 @@
     const st = Core.step(C, S);
     const r = Core.present(C, S, evId);
     if (r.result === "win") {
+      store(COACH_KEY, true);
+      $("choiceArea").innerHTML = "";
       flyEvidence(C.evidence[evId], () => { shout("이의 있음!"); setTimeout(() => playLines(r.lines, next), 650); });
     }
     else if (r.result === "alt") { shout("잠깐!", true); setTimeout(() => playLines(r.lines, () => renderCross(st)), 650); }
@@ -378,7 +403,10 @@
       const e = C.evidence[focusId];
       d.hidden = false;
       d.innerHTML = `<h3>${esc(e.ic)} ${esc(e.name)}</h3><p>${esc(e.desc)}</p><pre><code></code></pre>`;
-      d.querySelector("code").textContent = e.code;
+      // 코드·실행 결과 카드만 색을 입힌다 (명세 요약·추리는 글이라 그대로)
+      if (e.k === "실행 결과") d.querySelector("code").innerHTML = HL.highlightRun(e.code, pack.language);
+      else if (e.k === "코드") d.querySelector("code").innerHTML = HL.highlight(e.code, pack.language);
+      else d.querySelector("code").textContent = e.code;
     } else d.hidden = true;
 
     const acts = $("sheetActions"); acts.innerHTML = "";
@@ -403,6 +431,7 @@
 
   /* ---------- 결말 ---------- */
   function gameOver() {
+    trackStep("over", "신뢰도 바닥");
     Music.mood("rest");
     setSpeaker("judge"); setTag("");
     const ads = window.CourtAds && window.CourtAds.available();
